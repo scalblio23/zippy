@@ -61,12 +61,12 @@ const AI_STEPS = [
 ];
 
 const RATE_MESSAGES: Record<string, { style: "success" | "caution"; emoji: string; headline: string; body: string }> = {
-  "Under 5%":    { style: "caution", emoji: "🤔", headline: "We may be able to help",         body: "Your rate is already quite competitive, but there may still be savings or better features available. Book a 10-minute call and one of our brokers will walk you through your options." },
-  "5% – 5.5%":  { style: "success", emoji: "👀", headline: "There could be room to move",    body: "Rates in your range have been shifting. There's a good chance we can find you something sharper. Book a 10-minute call with a broker to see what's available." },
-  "5.5% – 6%":  { style: "success", emoji: "💡", headline: "Good news — we can likely do better", body: "At 5.5–6%, you're paying more than you need to. We've identified lenders who could do better. Book a 10-minute call with a broker to find out how much you could save." },
-  "6% – 6.5%":  { style: "success", emoji: "🎯", headline: "We can probably get you a better deal", body: "A rate of 6–6.5% is above what most lenders are offering right now. Book a 10-minute call with a broker to talk through your options and the savings on the table." },
-  "6.5% – 7%":  { style: "success", emoji: "🔥", headline: "Big savings on the table",        body: "At 6.5–7%, you're significantly above market rates. Multiple lenders could do better for you. Book a 10-minute call — the savings could be substantial." },
-  "Over 7%":    { style: "success", emoji: "🚨", headline: "You're paying way too much",       body: "Over 7% is well above what's available in today's market. There are lenders who can cut your repayments meaningfully. Book a 10-minute call with a broker now." },
+  "Under 5%":    { style: "caution", emoji: "🤔", headline: "We may be able to help",         body: "Your rate is already quite competitive, but there may still be savings or better features available. Your broker will walk you through what's possible on your call." },
+  "5% – 5.5%":  { style: "success", emoji: "👀", headline: "There could be room to move",    body: "Rates in your range have been shifting. There's a good chance we can find you something sharper — your broker will share specific options on your call." },
+  "5.5% – 6%":  { style: "success", emoji: "💡", headline: "Good news — we can likely do better", body: "At 5.5–6%, you're paying more than you need to. We've identified lenders who could do better — your broker will walk you through exactly how much you could save." },
+  "6% – 6.5%":  { style: "success", emoji: "🎯", headline: "We can probably get you a better deal", body: "A rate of 6–6.5% is above what most lenders are offering right now. Your broker will talk you through the savings on the table when they call." },
+  "6.5% – 7%":  { style: "success", emoji: "🔥", headline: "Big savings on the table",        body: "At 6.5–7%, you're significantly above market rates. Multiple lenders could do better for you — your broker will go through the numbers with you on your call." },
+  "Over 7%":    { style: "success", emoji: "🚨", headline: "You're paying way too much",       body: "Over 7% is well above what's available in today's market. There are lenders who can cut your repayments meaningfully — your broker will run through the options on your call." },
 };
 
 const TOTAL_STEPS = 7;
@@ -146,6 +146,95 @@ function getNext2AvailableDays(blockedDayKeys: Set<string>, blockedSlotKeys?: Se
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+}
+
+// ── Calendar (.ics) helpers ───────────────────────────────────────────────────
+// Build an ICS file for a 30-minute refinance call. Times are pinned to the
+// slot's AEST time (slots are defined in AEST), then expressed in UTC so the
+// event lands at the correct local time on whatever device the user adds it to.
+function buildIcsFile(args: {
+  date: Date;
+  slot: string;           // e.g. "9:00 AM – 9:30 AM"
+  name: string;
+  phone: string;
+}): string {
+  const AEST_OFFSET_HOURS = 10;
+  const parseSlotStartAEST = (slot: string): { hour: number; minute: number } => {
+    const start = slot.split("–")[0].trim();
+    const m = start.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+    if (!m) return { hour: 9, minute: 0 };
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    const ampm = m[3].toUpperCase();
+    if (ampm === "PM" && h !== 12) h += 12;
+    if (ampm === "AM" && h === 12) h = 0;
+    return { hour: h, minute: min };
+  };
+
+  const { hour: hAEST, minute } = parseSlotStartAEST(args.slot);
+  // Build a UTC date for the slot start (AEST = UTC + 10, so subtract 10h).
+  const startUtc = new Date(Date.UTC(
+    args.date.getFullYear(),
+    args.date.getMonth(),
+    args.date.getDate(),
+    hAEST - AEST_OFFSET_HOURS,
+    minute,
+    0,
+  ));
+  const endUtc = new Date(startUtc.getTime() + 30 * 60 * 1000);
+
+  const fmt = (d: Date): string =>
+    d.getUTCFullYear().toString().padStart(4, "0") +
+    String(d.getUTCMonth() + 1).padStart(2, "0") +
+    String(d.getUTCDate()).padStart(2, "0") +
+    "T" +
+    String(d.getUTCHours()).padStart(2, "0") +
+    String(d.getUTCMinutes()).padStart(2, "0") +
+    String(d.getUTCSeconds()).padStart(2, "0") +
+    "Z";
+
+  // RFC-5545 text escape: backslash, comma, semicolon, newlines.
+  const esc = (s: string): string =>
+    s.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\n/g, "\\n");
+
+  const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}@finchecker`;
+
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Finchecker//Refinance Call//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${fmt(new Date())}`,
+    `DTSTART:${fmt(startUtc)}`,
+    `DTEND:${fmt(endUtc)}`,
+    `SUMMARY:${esc("Refinance call with Finchecker")}`,
+    `DESCRIPTION:${esc(`A broker will call ${args.name} on ${args.phone} to walk through refinance options and potential savings.\n\nTip: have your most recent home loan statement handy if you can — it helps us give you accurate numbers on the call.`)}`,
+    "BEGIN:VALARM",
+    "TRIGGER:-PT15M",
+    "ACTION:DISPLAY",
+    `DESCRIPTION:${esc("Refinance call in 15 minutes")}`,
+    "END:VALARM",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ];
+  // RFC-5545 requires CRLF line endings.
+  return lines.join("\r\n");
+}
+
+function downloadIcsFile(content: string, filename: string): void {
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Defer revoke so the download has time to start
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ── Slide variants ────────────────────────────────────────────────────────────
@@ -368,12 +457,13 @@ function NavButtons({
 
 // ── AI Analysing Screen ───────────────────────────────────────────────────────
 function AIAnalysingScreen({
-  interest, name, leadId, onReportReady,
+  interest, name, leadId, onReportReady, onContinue,
 }: {
   interest: string;
   name: string;
   leadId: number | null;
   onReportReady: (report: BrokerReport) => void;
+  onContinue: () => void;
 }) {
   const [aiPhase, setAiPhase] = useState(0);
   const reportedRef = useRef(false);
@@ -409,7 +499,8 @@ function AIAnalysingScreen({
   }, [reportData, onReportReady]);
 
   const msg = RATE_MESSAGES[interest] ?? RATE_MESSAGES["5.5% – 6%"];
-  const firstName = name.split(" ")[0];
+  const rawFirst = name.split(" ")[0] ?? "";
+  const firstName = rawFirst ? rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1).toLowerCase() : "";
   const isGenerating = !reportData || reportData.status === "generating" || reportData.status === "pending";
 
   return (
@@ -493,6 +584,23 @@ function AIAnalysingScreen({
           </p>
         </motion.div>
       )}
+
+      {/* Continue button — appears once the analysis has finished */}
+      {aiPhase >= AI_STEPS.length - 1 && (
+        <motion.button
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.6 }}
+          onClick={onContinue}
+          whileHover={{ scale: 1.02, backgroundColor: "#0D5C55" }}
+          whileTap={{ scale: 0.98 }}
+          className="mt-5 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#0D9E8F] text-white font-bold tracking-wide shadow-lg shadow-teal-200 transition-colors"
+          style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, letterSpacing: "0.05em", fontSize: "1rem" }}
+        >
+          CONFIRM MY BOOKING
+          <ChevronRightIcon className="w-4 h-4" />
+        </motion.button>
+      )}
     </div>
   );
 }
@@ -506,7 +614,8 @@ function ReportReadyScreen({
   interest: string;
   onBookCall: () => void;
 }) {
-  const firstName = name.split(" ")[0];
+  const rawFirst = name.split(" ")[0] ?? "";
+  const firstName = rawFirst ? rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1).toLowerCase() : "";
   const msg = RATE_MESSAGES[interest] ?? RATE_MESSAGES["5.5% – 6%"];
 
   return (
@@ -1254,17 +1363,34 @@ export default function Home() {
               <> on <strong>{formatDate(form.bookingDate)}</strong> at <strong>{(TIMEZONES.find(t => `${t.tz}|${t.offsetHours}` === form.timezone) ?? TIMEZONES[0]).label.split("–")[0].trim()}</strong> <strong>{convertSlotToTimezone(form.bookingTime, (TIMEZONES.find(t => `${t.tz}|${t.offsetHours}` === form.timezone) ?? TIMEZONES[0]).offsetHours)}</strong></>
             )}.
           </p>
-          {aiReport && (
-            <div className="bg-[#0D5C55]/5 border border-[#0D5C55]/15 rounded-xl p-4 text-left mb-4">
-              <p className="text-xs font-bold text-[#0D5C55] uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" /> Your Broker Report
-              </p>
-              <p className="text-xs text-gray-500 leading-relaxed">{aiReport.summary}</p>
-              <p className="text-xs font-semibold text-[#0D9E8F] mt-2">
-                Potential saving: {aiReport.potentialSaving}
-              </p>
-            </div>
+
+          {form.bookingDate && form.bookingTime && (
+            <motion.button
+              onClick={() => {
+                const ics = buildIcsFile({
+                  date: form.bookingDate!,
+                  slot: form.bookingTime,
+                  name: form.name,
+                  phone: form.phone,
+                });
+                downloadIcsFile(ics, "refinance-call.ics");
+              }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full mb-4 flex items-center justify-center gap-2 px-5 py-3 rounded-xl border-2 border-[#0D9E8F] text-[#0D9E8F] font-bold text-sm hover:bg-[#0D9E8F]/5 transition-colors"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, letterSpacing: "0.05em" }}
+            >
+              📅 ADD TO CALENDAR
+            </motion.button>
           )}
+
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-left mb-4">
+            <p className="text-xs font-bold text-amber-700 mb-1.5 uppercase tracking-wide">💡 Quick tip</p>
+            <p className="text-xs text-amber-700/90 leading-relaxed">
+              Have your most recent home loan statement handy if you can — it helps us give you accurate numbers on the call.
+            </p>
+          </div>
+
           <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Current bank</span>
@@ -1404,6 +1530,7 @@ export default function Home() {
                 name={form.name}
                 leadId={leadId}
                 onReportReady={handleReportReady}
+                onContinue={() => setSubmitted(true)}
               />
             </div>
           </div>
