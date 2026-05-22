@@ -148,6 +148,33 @@ function formatDate(d: Date): string {
   return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
 }
 
+// Map a TIME_SLOT label (AEST, e.g. "1:00 PM – 1:30 PM") to its hour-bucket
+// block key ("13:00"). Admin blocks at hour granularity so both half-hours
+// inside an hour share the same block key.
+function slotToBlockKey(slot: string): string {
+  const start = slot.split("–")[0].trim();
+  const m = start.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+  if (!m) return "";
+  let h = parseInt(m[1], 10);
+  const ampm = m[3].toUpperCase();
+  if (ampm === "PM" && h !== 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:00`;
+}
+
+function isSlotBlocked(
+  date: Date | null,
+  slot: string,
+  blockedDayKeys: Set<string>,
+  blockedSlotKeys: Set<string>,
+): boolean {
+  if (!date) return false;
+  const dateKey = date.toISOString().slice(0, 10);
+  if (blockedDayKeys.has(dateKey)) return true;
+  const hourKey = slotToBlockKey(slot);
+  return hourKey ? blockedSlotKeys.has(`${dateKey}|${hourKey}`) : false;
+}
+
 // ── Calendar helpers ──────────────────────────────────────────────────────────
 // All booking slots are defined in AEST. Each helper below converts that to a
 // platform-appropriate format so users can add the event regardless of which
@@ -945,21 +972,28 @@ function StepContact({
             <div className="grid grid-cols-2 gap-2">
               {TIME_SLOTS.map(slot => {
                 const isSelected = form.bookingTime === slot;
+                const blocked = isSlotBlocked(form.bookingDate, slot, blockedDayKeys, blockedSlotKeys);
                 return (
                   <motion.button
                     key={slot}
-                    onClick={() => handleTimeSelect(slot)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    onClick={() => { if (!blocked) handleTimeSelect(slot); }}
+                    disabled={blocked}
+                    whileHover={blocked ? {} : { scale: 1.02 }}
+                    whileTap={blocked ? {} : { scale: 0.98 }}
                     className={`px-4 py-3 rounded-xl border-2 text-sm font-medium text-left transition-all duration-200
-                      ${isSelected
+                      ${blocked
+                        ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
+                        : isSelected
                         ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]"
                         : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"
                       }`}
                   >
                     <div className="flex items-center justify-between">
                       <span>{displaySlot(slot)}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-[#0D5C55]" strokeWidth={2.5} />}
+                      {blocked
+                        ? <span className="text-[10px] text-gray-300 font-semibold uppercase">Unavailable</span>
+                        : isSelected && <Check className="w-3.5 h-3.5 text-[#0D5C55]" strokeWidth={2.5} />
+                      }
                     </div>
                   </motion.button>
                 );
@@ -1130,21 +1164,28 @@ function StepBooking({
             <div className="grid grid-cols-2 gap-2">
               {TIME_SLOTS.map(slot => {
                 const isSelected = form.bookingTime === slot;
+                const blocked = isSlotBlocked(form.bookingDate, slot, blockedDayKeys, blockedSlotKeys);
                 return (
                   <motion.button
                     key={slot}
-                    onClick={() => handleTimeSelect(slot)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    onClick={() => { if (!blocked) handleTimeSelect(slot); }}
+                    disabled={blocked}
+                    whileHover={blocked ? {} : { scale: 1.02 }}
+                    whileTap={blocked ? {} : { scale: 0.98 }}
                     className={`px-4 py-3 rounded-xl border-2 text-sm font-medium text-left transition-all duration-200
-                      ${isSelected
+                      ${blocked
+                        ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
+                        : isSelected
                         ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]"
                         : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"
                       }`}
                   >
                     <div className="flex items-center justify-between">
                       <span>{displaySlot(slot)}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-[#0D5C55]" strokeWidth={2.5} />}
+                      {blocked
+                        ? <span className="text-[10px] text-gray-300 font-semibold uppercase">Unavailable</span>
+                        : isSelected && <Check className="w-3.5 h-3.5 text-[#0D5C55]" strokeWidth={2.5} />
+                      }
                     </div>
                   </motion.button>
                 );
