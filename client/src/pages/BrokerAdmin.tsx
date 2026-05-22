@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import {
   FileText, Phone, Mail, Calendar, TrendingDown,
   ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Loader2,
-  User, Trash2, CheckSquare, Square, ChevronLeft, ChevronRight, Ban, X,
+  User, ChevronLeft, ChevronRight, Ban, X,
 } from "lucide-react";
 import type { BrokerReport, LenderOption } from "../../../server/routers";
 import type { Lead } from "../../../drizzle/schema";
@@ -477,20 +477,16 @@ function LenderCard({ lender, rank }: { lender: LenderOption; rank: number }) {
   );
 }
 
-function LeadCard({ lead, selected, onToggleSelect, onDeleted }: {
-  lead: Lead; selected: boolean;
-  onToggleSelect: (id: number) => void;
-  onDeleted: (id: number) => void;
+function LeadCard({ lead }: {
+  lead: Lead;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const report = lead.aiReport as BrokerReport | null;
   const hasBooking = !!lead.bookingDate;
-  const deleteMutation = trpc.survey.deleteLead.useMutation({ onSuccess: () => onDeleted(lead.id) });
 
   return (
     <>
-      <motion.div layout className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-colors ${selected ? "border-[#0D9E8F] ring-2 ring-[#0D9E8F]/20" : "border-gray-100"}`}>
+      <motion.div layout className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-colors">
         {hasBooking && (
           <div className="bg-[#0D5C55] px-5 py-2 flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-white/80 flex-shrink-0" />
@@ -505,9 +501,6 @@ function LeadCard({ lead, selected, onToggleSelect, onDeleted }: {
           </div>
         )}
         <div className="flex items-start gap-3 p-5">
-          <button onClick={() => onToggleSelect(lead.id)} className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-[#0D9E8F] transition-colors">
-            {selected ? <CheckSquare className="w-5 h-5 text-[#0D9E8F]" /> : <Square className="w-5 h-5" />}
-          </button>
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(e => !e)}>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-[#0D5C55]/10 flex items-center justify-center flex-shrink-0">
@@ -540,9 +533,6 @@ function LeadCard({ lead, selected, onToggleSelect, onDeleted }: {
             <div className="flex items-center gap-2">
               <button onClick={() => setExpanded(e => !e)} className="text-gray-300 hover:text-gray-500 transition-colors">
                 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
-              <button onClick={() => setConfirmDelete(true)} className="p-1 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-colors">
-                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -598,40 +588,13 @@ function LeadCard({ lead, selected, onToggleSelect, onDeleted }: {
           )}
         </AnimatePresence>
       </motion.div>
-
-      <AnimatePresence>
-        {confirmDelete && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setConfirmDelete(false)}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center"><Trash2 className="w-5 h-5 text-red-500" /></div>
-                <div><p className="font-bold text-gray-800">Delete Lead?</p><p className="text-xs text-gray-400">{lead.name} — {lead.email}</p></div>
-              </div>
-              <p className="text-sm text-gray-500 mb-5">This will permanently delete this lead and their AI report.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
-                <button onClick={() => deleteMutation.mutate({ leadId: lead.id })} disabled={deleteMutation.isPending}
-                  className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                  {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}Delete
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 export default function BrokerAdmin() {
-  const utils = trpc.useUtils();
   const { data: leads, isLoading, error } = trpc.survey.getAllLeads.useQuery();
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
-  const deleteLeadMutation = trpc.survey.deleteLead.useMutation();
 
   const sortedLeads = useMemo(() => {
     if (!leads) return [];
@@ -640,18 +603,7 @@ export default function BrokerAdmin() {
     return [...booked, ...unbooked];
   }, [leads]);
 
-  const allIds = sortedLeads.map(l => l.id);
-  const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id));
-  const someSelected = selected.size > 0;
   const bookedCount = leads?.filter(l => l.bookingDate).length ?? 0;
-
-  const toggleSelect = (id: number) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(allIds));
-  const handleDeleted = (id: number) => { setSelected(prev => { const n = new Set(prev); n.delete(id); return n; }); utils.survey.getAllLeads.invalidate(); };
-  const handleBulkDelete = async () => {
-    await Promise.all(Array.from(selected).map(id => deleteLeadMutation.mutateAsync({ leadId: id })));
-    setSelected(new Set()); setConfirmBulkDelete(false); utils.survey.getAllLeads.invalidate();
-  };
 
   return (
     <div className="min-h-screen bg-[#F0F0EE]">
@@ -675,17 +627,6 @@ export default function BrokerAdmin() {
           </div>
           <div className="flex items-center gap-3">
             {sortedLeads.length > 0 && (
-              <button onClick={toggleSelectAll} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0D5C55] transition-colors px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-[#0D5C55]">
-                {allSelected ? <CheckSquare className="w-4 h-4 text-[#0D9E8F]" /> : <Square className="w-4 h-4" />}
-                {allSelected ? "Deselect All" : "Select All"}
-              </button>
-            )}
-            {someSelected && (
-              <button onClick={() => setConfirmBulkDelete(true)} className="flex items-center gap-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors px-3 py-2 rounded-lg">
-                <Trash2 className="w-4 h-4" />Delete {selected.size} selected
-              </button>
-            )}
-            {sortedLeads.length > 0 && !someSelected && (
               <div className="flex gap-3 text-xs">
                 <span className="flex items-center gap-1 text-green-600 font-medium"><CheckCircle className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "ready").length} ready</span>
                 <span className="flex items-center gap-1 text-amber-600 font-medium"><Loader2 className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "generating").length} generating</span>
@@ -709,35 +650,12 @@ export default function BrokerAdmin() {
             return (
               <div key={lead.id}>
                 {showDivider && <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mt-6 mb-3 flex items-center gap-1.5"><User className="w-3.5 h-3.5" />No Booking ({sortedLeads.length - bookedCount})</p>}
-                <LeadCard lead={lead} selected={selected.has(lead.id)} onToggleSelect={toggleSelect} onDeleted={handleDeleted} />
+                <LeadCard lead={lead} />
               </div>
             );
           })}
         </div>
       </main>
-
-      <AnimatePresence>
-        {confirmBulkDelete && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setConfirmBulkDelete(false)}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center"><Trash2 className="w-5 h-5 text-red-500" /></div>
-                <div><p className="font-bold text-gray-800">Delete {selected.size} Leads?</p><p className="text-xs text-gray-400">This cannot be undone.</p></div>
-              </div>
-              <p className="text-sm text-gray-500 mb-5">Permanently delete {selected.size} lead{selected.size > 1 ? "s" : ""} and their AI reports.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setConfirmBulkDelete(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
-                <button onClick={handleBulkDelete} disabled={deleteLeadMutation.isPending}
-                  className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                  {deleteLeadMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}Delete All
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <p className="text-center text-xs text-gray-300 pb-6 mt-4">v1.19</p>
     </div>
