@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
-import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, deleteLead, getBlockedSlots, addBlockedSlot, removeBlockedSlot } from "./db";
+import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot } from "./db";
 import { z } from "zod";
 
 export const appRouter = router({
@@ -81,12 +81,13 @@ export const appRouter = router({
       return getAllLeads();
     }),
 
-    // Admin: delete a lead
+    // Admin: delete a lead — DISABLED. Deletion has been removed from the
+    // admin UI; keeping this procedure throw-only as defense-in-depth so direct
+    // API calls cannot remove leads either.
     deleteLead: publicProcedure
       .input(z.object({ leadId: z.number() }))
-      .mutation(async ({ input }) => {
-        await deleteLead(input.leadId);
-        return { success: true };
+      .mutation(async () => {
+        throw new Error("Lead deletion is disabled");
       }),
   }),
 
