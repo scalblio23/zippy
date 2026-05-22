@@ -1,0 +1,128 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   DESIGN SYSTEM — Bold Conversion-Focused Survey
+   Style ref: King Kong agency — large bold headlines, light grey
+   background, connected dot progress bar, strong CTA
+   Primary: Dark Teal Green (#0D5C55)
+   CTA: Teal Green (#0D9E8F)
+   Background: Light grey (#F0F0EE)
+   Fonts: Barlow Condensed (headlines) + DM Sans (body/UI)
+   ============================================================ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.5rem;
+  --primary: oklch(0.35 0.09 175);
+  --primary-foreground: oklch(0.98 0 0);
+  --background: oklch(0.955 0.003 100);
+  --foreground: oklch(0.12 0.01 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.12 0.01 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.01 0);
+  --secondary: oklch(0.93 0.005 175);
+  --secondary-foreground: oklch(0.35 0.09 175);
+  --muted: oklch(0.93 0.003 100);
+  --muted-foreground: oklch(0.5 0.01 0);
+  --accent: oklch(0.52 0.13 175);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.87 0.005 100);
+  --input: oklch(0.87 0.005 100);
+  --ring: oklch(0.52 0.13 175);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'DM Sans', sans-serif;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1280px;
+    }
+  }
+}
+
+/* Survey slide animations */
+@keyframes slideInRight {
+  from { transform: translateX(60px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-60px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+@keyframes fadeUp {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.slide-in-right { animation: slideInRight 0.35s cubic-bezier(0.22,1,0.36,1) both; }
+.slide-in-left  { animation: slideInLeft  0.35s cubic-bezier(0.22,1,0.36,1) both; }
+.fade-up        { animation: fadeUp       0.4s  cubic-bezier(0.22,1,0.36,1) both; }
