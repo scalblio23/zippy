@@ -343,21 +343,28 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
                     >
                       {/* Top half (:00 slot) */}
                       <div className="flex-1 relative border-b border-dashed border-gray-200 overflow-hidden">
-                        {bookings00.length > 0 && !isBlocked && (
-                          <div className="absolute inset-0.5 rounded bg-[#0D5C55] flex items-center px-1.5 overflow-hidden shadow-sm">
-                            <p className="text-white text-[11px] font-semibold truncate">{bookings00[0].name}</p>
-                          </div>
-                        )}
-                        {isSlotBlocked && !isDayBlocked && (
+                        {/* Blocked indicator (sits underneath any booking) */}
+                        {isSlotBlocked && !isDayBlocked && bookings00.length === 0 && (
                           <div className="absolute inset-0.5 rounded bg-red-300/50 flex items-center justify-center">
                             <Ban className="w-3 h-3 text-red-500" />
+                          </div>
+                        )}
+                        {/* Booking pill — always rendered if a booking exists */}
+                        {bookings00.length > 0 && (
+                          <div className={`absolute inset-0.5 rounded flex items-center px-1.5 overflow-hidden shadow-sm
+                            ${isBlocked ? "bg-[#0D5C55] ring-2 ring-red-500" : "bg-[#0D5C55]"}`}>
+                            {isBlocked && <AlertCircle className="w-3 h-3 text-red-300 mr-1 flex-shrink-0" />}
+                            <p className="text-white text-[11px] font-semibold truncate">{bookings00[0].name}</p>
                           </div>
                         )}
                       </div>
                       {/* Bottom half (:30 slot) */}
                       <div className="flex-1 relative overflow-hidden">
-                        {bookings30.length > 0 && !isBlocked && (
-                          <div className="absolute inset-0.5 rounded bg-[#0D5C55] flex items-center px-1.5 overflow-hidden shadow-sm">
+                        {/* Booking pill — always rendered if a booking exists */}
+                        {bookings30.length > 0 && (
+                          <div className={`absolute inset-0.5 rounded flex items-center px-1.5 overflow-hidden shadow-sm
+                            ${isBlocked ? "bg-[#0D5C55] ring-2 ring-red-500" : "bg-[#0D5C55]"}`}>
+                            {isBlocked && <AlertCircle className="w-3 h-3 text-red-300 mr-1 flex-shrink-0" />}
                             <p className="text-white text-[11px] font-semibold truncate">{bookings30[0].name}</p>
                           </div>
                         )}
