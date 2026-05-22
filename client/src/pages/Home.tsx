@@ -148,19 +148,16 @@ function formatDate(d: Date): string {
   return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
 }
 
-// ── Calendar (.ics) helpers ───────────────────────────────────────────────────
-// Build an ICS file for a 30-minute refinance call. Times are pinned to the
-// slot's AEST time (slots are defined in AEST), then expressed in UTC so the
-// event lands at the correct local time on whatever device the user adds it to.
-function buildIcsFile(args: {
-  date: Date;
-  slot: string;           // e.g. "9:00 AM – 9:30 AM"
-  name: string;
-  phone: string;
-}): string {
-  const AEST_OFFSET_HOURS = 10;
-  const parseSlotStartAEST = (slot: string): { hour: number; minute: number } => {
-    const start = slot.split("–")[0].trim();
+// ── Calendar helpers ──────────────────────────────────────────────────────────
+// All booking slots are defined in AEST. Each helper below converts that to a
+// platform-appropriate format so users can add the event regardless of which
+// calendar app they use.
+const AEST_OFFSET_HOURS = 10;
+const CAL_EVENT_TITLE = "Refinance call with Finchecker";
+
+function buildCalEventTimes(date: Date, slot: string): { startUtc: Date; endUtc: Date } {
+  const parseSlotStartAEST = (s: string): { hour: number; minute: number } => {
+    const start = s.split("–")[0].trim();
     const m = start.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
     if (!m) return { hour: 9, minute: 0 };
     let h = parseInt(m[1], 10);
@@ -171,19 +168,19 @@ function buildIcsFile(args: {
     return { hour: h, minute: min };
   };
 
-  const { hour: hAEST, minute } = parseSlotStartAEST(args.slot);
-  // Build a UTC date for the slot start (AEST = UTC + 10, so subtract 10h).
+  const { hour: hAEST, minute } = parseSlotStartAEST(slot);
+  // AEST = UTC + 10, so subtract 10h to express the slot start in UTC.
   const startUtc = new Date(Date.UTC(
-    args.date.getFullYear(),
-    args.date.getMonth(),
-    args.date.getDate(),
-    hAEST - AEST_OFFSET_HOURS,
-    minute,
-    0,
+    date.getFullYear(), date.getMonth(), date.getDate(),
+    hAEST - AEST_OFFSET_HOURS, minute, 0,
   ));
   const endUtc = new Date(startUtc.getTime() + 30 * 60 * 1000);
+  return { startUtc, endUtc };
+}
 
-  const fmt = (d: Date): string =>
+// Compact UTC stamp used by both .ics (DTSTART) and Google Calendar URL.
+function formatCalUtcStamp(d: Date): string {
+  return (
     d.getUTCFullYear().toString().padStart(4, "0") +
     String(d.getUTCMonth() + 1).padStart(2, "0") +
     String(d.getUTCDate()).padStart(2, "0") +
@@ -191,14 +188,21 @@ function buildIcsFile(args: {
     String(d.getUTCHours()).padStart(2, "0") +
     String(d.getUTCMinutes()).padStart(2, "0") +
     String(d.getUTCSeconds()).padStart(2, "0") +
-    "Z";
+    "Z"
+  );
+}
 
+function buildCalDescription(name: string, phone: string): string {
+  return `A broker will call ${name} on ${phone} to walk through refinance options and potential savings.\n\nTip: have your most recent home loan statement handy if you can — it helps us give you accurate numbers on the call.`;
+}
+
+// ── 1) ICS file (Apple Calendar, Outlook desktop, generic fallback) ───────────
+function buildIcsFile(args: { date: Date; slot: string; name: string; phone: string }): string {
+  const { startUtc, endUtc } = buildCalEventTimes(args.date, args.slot);
   // RFC-5545 text escape: backslash, comma, semicolon, newlines.
   const esc = (s: string): string =>
     s.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\n/g, "\\n");
-
   const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}@finchecker`;
-
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -207,11 +211,11 @@ function buildIcsFile(args: {
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     `UID:${uid}`,
-    `DTSTAMP:${fmt(new Date())}`,
-    `DTSTART:${fmt(startUtc)}`,
-    `DTEND:${fmt(endUtc)}`,
-    `SUMMARY:${esc("Refinance call with Finchecker")}`,
-    `DESCRIPTION:${esc(`A broker will call ${args.name} on ${args.phone} to walk through refinance options and potential savings.\n\nTip: have your most recent home loan statement handy if you can — it helps us give you accurate numbers on the call.`)}`,
+    `DTSTAMP:${formatCalUtcStamp(new Date())}`,
+    `DTSTART:${formatCalUtcStamp(startUtc)}`,
+    `DTEND:${formatCalUtcStamp(endUtc)}`,
+    `SUMMARY:${esc(CAL_EVENT_TITLE)}`,
+    `DESCRIPTION:${esc(buildCalDescription(args.name, args.phone))}`,
     "BEGIN:VALARM",
     "TRIGGER:-PT15M",
     "ACTION:DISPLAY",
@@ -220,8 +224,7 @@ function buildIcsFile(args: {
     "END:VEVENT",
     "END:VCALENDAR",
   ];
-  // RFC-5545 requires CRLF line endings.
-  return lines.join("\r\n");
+  return lines.join("\r\n"); // RFC-5545 requires CRLF line endings.
 }
 
 function downloadIcsFile(content: string, filename: string): void {
@@ -233,8 +236,35 @@ function downloadIcsFile(content: string, filename: string): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  // Defer revoke so the download has time to start
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── 2) Google Calendar — opens a pre-filled compose tab ───────────────────────
+function buildGoogleCalendarUrl(args: { date: Date; slot: string; name: string; phone: string }): string {
+  const { startUtc, endUtc } = buildCalEventTimes(args.date, args.slot);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: CAL_EVENT_TITLE,
+    dates: `${formatCalUtcStamp(startUtc)}/${formatCalUtcStamp(endUtc)}`,
+    details: buildCalDescription(args.name, args.phone),
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// ── 3) Outlook (web/Microsoft 365) — opens a pre-filled compose page ──────────
+// Uses ISO-8601 with Z suffix; Outlook accepts UTC times and shows them in the
+// user's local timezone automatically.
+function buildOutlookCalendarUrl(args: { date: Date; slot: string; name: string; phone: string }): string {
+  const { startUtc, endUtc } = buildCalEventTimes(args.date, args.slot);
+  const params = new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: CAL_EVENT_TITLE,
+    startdt: startUtc.toISOString().replace(/\.\d{3}Z$/, "Z"),
+    enddt: endUtc.toISOString().replace(/\.\d{3}Z$/, "Z"),
+    body: buildCalDescription(args.name, args.phone),
+  });
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
 }
 
 // ── Slide variants ────────────────────────────────────────────────────────────
@@ -1365,23 +1395,57 @@ export default function Home() {
           </p>
 
           {form.bookingDate && form.bookingTime && (
-            <motion.button
-              onClick={() => {
-                const ics = buildIcsFile({
-                  date: form.bookingDate!,
-                  slot: form.bookingTime,
-                  name: form.name,
-                  phone: form.phone,
-                });
-                downloadIcsFile(ics, "refinance-call.ics");
-              }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full mb-4 flex items-center justify-center gap-2 px-5 py-3 rounded-xl border-2 border-[#0D9E8F] text-[#0D9E8F] font-bold text-sm hover:bg-[#0D9E8F]/5 transition-colors"
-              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, letterSpacing: "0.05em" }}
-            >
-              📅 ADD TO CALENDAR
-            </motion.button>
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">📅 Add to your calendar</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <motion.a
+                  href={buildGoogleCalendarUrl({
+                    date: form.bookingDate,
+                    slot: form.bookingTime,
+                    name: form.name,
+                    phone: form.phone,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-xs hover:border-[#0D9E8F] hover:text-[#0D9E8F] transition-colors"
+                >
+                  Google
+                </motion.a>
+                <motion.a
+                  href={buildOutlookCalendarUrl({
+                    date: form.bookingDate,
+                    slot: form.bookingTime,
+                    name: form.name,
+                    phone: form.phone,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-xs hover:border-[#0D9E8F] hover:text-[#0D9E8F] transition-colors"
+                >
+                  Outlook
+                </motion.a>
+                <motion.button
+                  onClick={() => {
+                    const ics = buildIcsFile({
+                      date: form.bookingDate!,
+                      slot: form.bookingTime,
+                      name: form.name,
+                      phone: form.phone,
+                    });
+                    downloadIcsFile(ics, "refinance-call.ics");
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-xs hover:border-[#0D9E8F] hover:text-[#0D9E8F] transition-colors"
+                >
+                  Apple / iCal
+                </motion.button>
+              </div>
+            </div>
           )}
 
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-left mb-4">
