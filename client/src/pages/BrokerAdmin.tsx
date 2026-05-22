@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import {
   FileText, Phone, Mail, Calendar, TrendingDown,
   ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Loader2,
-  User, ChevronLeft, ChevronRight, Ban, X,
+  User, ChevronLeft, ChevronRight, Ban, X, Search,
 } from "lucide-react";
 import type { BrokerReport, LenderOption } from "../../../server/routers";
 import type { Lead } from "../../../drizzle/schema";
@@ -600,17 +600,91 @@ function LeadCard({ lead }: {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
+type LeadFilter = "all" | "today" | "thisWeek" | "upcoming" | "past";
+
+const INITIAL_VISIBLE_COUNT = 15;
+
 export default function BrokerAdmin() {
   const { data: leads, isLoading, error } = trpc.survey.getAllLeads.useQuery();
 
-  const sortedLeads = useMemo(() => {
-    if (!leads) return [];
-    const booked = leads.filter(l => l.bookingDate).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    const unbooked = leads.filter(l => !l.bookingDate).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return [...booked, ...unbooked];
-  }, [leads]);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<LeadFilter>("all");
+  const [showAll, setShowAll] = useState(false);
 
-  const bookedCount = leads?.filter(l => l.bookingDate).length ?? 0;
+  // Compute date boundaries used by the filter chips. Uses local-day boundaries
+  // so "Today" means the broker's local day, not UTC.
+  const dateBoundaries = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayKey = today.toISOString().slice(0, 10);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Week = today through Sunday (inclusive). If today is Sunday, that's just today.
+    const endOfWeek = new Date(today);
+    const dow = today.getDay(); // 0 = Sun
+    const daysUntilSunday = dow === 0 ? 0 : 7 - dow;
+    endOfWeek.setDate(endOfWeek.getDate() + daysUntilSunday);
+    const endOfWeekKey = endOfWeek.toISOString().slice(0, 10);
+
+    return { todayKey, endOfWeekKey };
+  }, []);
+
+  const filteredLeads = useMemo(() => {
+    if (!leads) return [];
+    const q = search.trim().toLowerCase();
+
+    return leads
+      .filter(lead => {
+        // Text search across the fields a broker would scan for.
+        if (q) {
+          const hay = `${lead.name} ${lead.email} ${lead.phone} ${lead.bankName ?? ""}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        // Time bucket filter — applies to booking date, not submission date.
+        if (filter === "all") return true;
+
+        const bookKey = lead.bookingDate ? parseBookingDateKey(lead.bookingDate) : null;
+        // Leads without a parseable booking date only show in "All".
+        if (!bookKey) return false;
+
+        if (filter === "today") return bookKey === dateBoundaries.todayKey;
+        if (filter === "thisWeek") return bookKey >= dateBoundaries.todayKey && bookKey <= dateBoundaries.endOfWeekKey;
+        if (filter === "upcoming") return bookKey >= dateBoundaries.todayKey;
+        if (filter === "past") return bookKey < dateBoundaries.todayKey;
+        return true;
+      })
+      // Newest submissions at the top.
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [leads, search, filter, dateBoundaries]);
+
+  // Compute counts for the filter chips so the user sees how many in each bucket.
+  const counts = useMemo(() => {
+    const c = { all: 0, today: 0, thisWeek: 0, upcoming: 0, past: 0 };
+    if (!leads) return c;
+    c.all = leads.length;
+    for (const lead of leads) {
+      const bookKey = lead.bookingDate ? parseBookingDateKey(lead.bookingDate) : null;
+      if (!bookKey) continue;
+      if (bookKey === dateBoundaries.todayKey) c.today++;
+      if (bookKey >= dateBoundaries.todayKey && bookKey <= dateBoundaries.endOfWeekKey) c.thisWeek++;
+      if (bookKey >= dateBoundaries.todayKey) c.upcoming++;
+      if (bookKey < dateBoundaries.todayKey) c.past++;
+    }
+    return c;
+  }, [leads, dateBoundaries]);
+
+  const visibleLeads = showAll ? filteredLeads : filteredLeads.slice(0, INITIAL_VISIBLE_COUNT);
+  const hiddenCount = filteredLeads.length - visibleLeads.length;
+
+  const FILTER_CHIPS: { id: LeadFilter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: counts.all },
+    { id: "today", label: "Today", count: counts.today },
+    { id: "thisWeek", label: "This week", count: counts.thisWeek },
+    { id: "upcoming", label: "Upcoming", count: counts.upcoming },
+    { id: "past", label: "Past", count: counts.past },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F0F0EE]">
@@ -630,38 +704,114 @@ export default function BrokerAdmin() {
         <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
           <div>
             <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900 }} className="text-3xl text-[#0D1A18] uppercase">All Leads</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{leads?.length ?? 0} total · {bookedCount} booked</p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {filteredLeads.length} {filteredLeads.length === 1 ? "lead" : "leads"}
+              {filter !== "all" || search ? ` (of ${counts.all} total)` : ""}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            {sortedLeads.length > 0 && (
-              <div className="flex gap-3 text-xs">
-                <span className="flex items-center gap-1 text-green-600 font-medium"><CheckCircle className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "ready").length} ready</span>
-                <span className="flex items-center gap-1 text-amber-600 font-medium"><Loader2 className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "generating").length} generating</span>
-              </div>
-            )}
-          </div>
+          {(leads?.length ?? 0) > 0 && (
+            <div className="flex gap-3 text-xs">
+              <span className="flex items-center gap-1 text-green-600 font-medium"><CheckCircle className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "ready").length} ready</span>
+              <span className="flex items-center gap-1 text-amber-600 font-medium"><Loader2 className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "generating").length} generating</span>
+            </div>
+          )}
         </div>
+
+        {/* Search + filters */}
+        {(leads?.length ?? 0) > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-3 mb-4 shadow-sm">
+            {/* Search */}
+            <div className="relative mb-3">
+              <Search className="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={search}
+                onChange={e => { setSearch(e.target.value); setShowAll(false); }}
+                placeholder="Search by name, email, phone, or bank..."
+                className="w-full pl-10 pr-9 py-2.5 text-sm rounded-xl border border-gray-100 bg-gray-50 focus:bg-white focus:outline-none focus:border-[#0D9E8F] transition-colors"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors p-1"
+                  aria-label="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {/* Filter chips */}
+            <div className="flex flex-wrap gap-1.5">
+              {FILTER_CHIPS.map(chip => {
+                const active = filter === chip.id;
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => { setFilter(chip.id); setShowAll(false); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
+                      ${active
+                        ? "bg-[#0D5C55] text-white"
+                        : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}
+                  >
+                    {chip.label}
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold
+                      ${active ? "bg-white/20 text-white" : "bg-white text-gray-400"}`}>
+                      {chip.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {isLoading && <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-[#0D9E8F]" /></div>}
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-600">Failed to load leads. Please refresh.</div>}
-        {sortedLeads.length === 0 && !isLoading && (
+        {!isLoading && filteredLeads.length === 0 && (leads?.length ?? 0) === 0 && (
           <div className="text-center py-20"><FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" /><p className="text-gray-400 text-sm">No leads yet.</p></div>
         )}
-
-        {bookedCount > 0 && <p className="text-xs font-bold tracking-widest uppercase text-[#0D9E8F] mb-3 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />Booked ({bookedCount})</p>}
+        {!isLoading && filteredLeads.length === 0 && (leads?.length ?? 0) > 0 && (
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+            <Search className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-500 text-sm font-medium mb-1">No leads match</p>
+            <p className="text-gray-400 text-xs mb-4">Try clearing your search or selecting a different filter.</p>
+            <button
+              onClick={() => { setSearch(""); setFilter("all"); }}
+              className="text-xs font-semibold text-[#0D5C55] hover:text-[#0D9E8F] transition-colors"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
 
         <div className="space-y-3">
-          {sortedLeads.map((lead, idx) => {
-            const prevHadBooking = idx > 0 && !!sortedLeads[idx - 1].bookingDate;
-            const showDivider = !lead.bookingDate && prevHadBooking;
-            return (
-              <div key={lead.id}>
-                {showDivider && <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mt-6 mb-3 flex items-center gap-1.5"><User className="w-3.5 h-3.5" />No Booking ({sortedLeads.length - bookedCount})</p>}
-                <LeadCard lead={lead} />
-              </div>
-            );
-          })}
+          {visibleLeads.map(lead => (
+            <LeadCard key={lead.id} lead={lead} />
+          ))}
         </div>
+
+        {hiddenCount > 0 && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => setShowAll(true)}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:border-[#0D5C55] hover:text-[#0D5C55] transition-colors"
+            >
+              <ChevronDown className="w-4 h-4" />
+              Show {hiddenCount} more {hiddenCount === 1 ? "lead" : "leads"}
+            </button>
+          </div>
+        )}
+        {showAll && filteredLeads.length > INITIAL_VISIBLE_COUNT && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => setShowAll(false)}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+              Collapse
+            </button>
+          </div>
+        )}
       </main>
 
       <p className="text-center text-xs text-gray-300 pb-6 mt-4">v1.19</p>
