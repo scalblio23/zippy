@@ -516,7 +516,6 @@ function LeadCard({ lead }: {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <p className="font-bold text-gray-800 text-base">{lead.name}</p>
-                  <StatusBadge status={lead.reportStatus} />
                   {!hasBooking && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-400 border border-gray-200">No booking</span>}
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
@@ -579,17 +578,6 @@ function LeadCard({ lead }: {
                     <p className="text-xs text-amber-600 leading-relaxed">{report.riskNotes}</p>
                   </div>
                 )}
-              </div>
-            </motion.div>
-          )}
-          {expanded && !report && lead.reportStatus !== "ready" && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-              <div className="border-t border-gray-100 p-5">
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  {lead.reportStatus === "generating" ? <><Loader2 className="w-4 h-4 animate-spin text-[#0D9E8F]" />Generating report...</>
-                    : lead.reportStatus === "failed" ? <><AlertCircle className="w-4 h-4 text-red-400" />Report generation failed.</>
-                    : <><Clock className="w-4 h-4" />Report pending.</>}
-                </div>
               </div>
             </motion.div>
           )}
@@ -709,12 +697,6 @@ export default function BrokerAdmin() {
               {filter !== "all" || search ? ` (of ${counts.all} total)` : ""}
             </p>
           </div>
-          {(leads?.length ?? 0) > 0 && (
-            <div className="flex gap-3 text-xs">
-              <span className="flex items-center gap-1 text-green-600 font-medium"><CheckCircle className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "ready").length} ready</span>
-              <span className="flex items-center gap-1 text-amber-600 font-medium"><Loader2 className="w-3.5 h-3.5" />{leads?.filter(l => l.reportStatus === "generating").length} generating</span>
-            </div>
-          )}
         </div>
 
         {/* Search + filters */}
