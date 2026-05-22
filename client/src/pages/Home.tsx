@@ -61,12 +61,12 @@ const AI_STEPS = [
 ];
 
 const RATE_MESSAGES: Record<string, { style: "success" | "caution"; emoji: string; headline: string; body: string }> = {
-  "Under 5%":    { style: "caution", emoji: "🤔", headline: "We may be able to help",         body: "Your rate is already quite competitive, but there may still be savings or better features available. We've prepared a report — book a 10-minute call to review it." },
-  "5% – 5.5%":  { style: "success", emoji: "👀", headline: "There could be room to move",    body: "Rates in your range have been shifting. There's a good chance we can find you something sharper. Your report is ready — book in a 10-minute call to lock in your results." },
-  "5.5% – 6%":  { style: "success", emoji: "💡", headline: "Good news — we can likely do better", body: "At 5.5–6%, you're paying more than you need to. We've identified lenders who could do better. Your report is ready — book a 10-minute call to find out how much." },
-  "6% – 6.5%":  { style: "success", emoji: "🎯", headline: "Your report is ready!",           body: "A rate of 6–6.5% is above what most lenders are offering right now. We've found better options for you. Book a 10-minute call to review your personalised results." },
-  "6.5% – 7%":  { style: "success", emoji: "🔥", headline: "Big savings on the table",        body: "At 6.5–7%, you're significantly above market rates. Your report shows multiple lenders who can do better. Book a 10-minute call — the savings could be substantial." },
-  "Over 7%":    { style: "success", emoji: "🚨", headline: "You're paying way too much",       body: "Over 7% is well above what's available in today's market. Your report is ready with lenders who can cut your repayments meaningfully. Book a 10-minute call now." },
+  "Under 5%":    { style: "caution", emoji: "🤔", headline: "We may be able to help",         body: "Your rate is already quite competitive, but there may still be savings or better features available. Book a 10-minute call and one of our brokers will walk you through your options." },
+  "5% – 5.5%":  { style: "success", emoji: "👀", headline: "There could be room to move",    body: "Rates in your range have been shifting. There's a good chance we can find you something sharper. Book a 10-minute call with a broker to see what's available." },
+  "5.5% – 6%":  { style: "success", emoji: "💡", headline: "Good news — we can likely do better", body: "At 5.5–6%, you're paying more than you need to. We've identified lenders who could do better. Book a 10-minute call with a broker to find out how much you could save." },
+  "6% – 6.5%":  { style: "success", emoji: "🎯", headline: "We can probably get you a better deal", body: "A rate of 6–6.5% is above what most lenders are offering right now. Book a 10-minute call with a broker to talk through your options and the savings on the table." },
+  "6.5% – 7%":  { style: "success", emoji: "🔥", headline: "Big savings on the table",        body: "At 6.5–7%, you're significantly above market rates. Multiple lenders could do better for you. Book a 10-minute call — the savings could be substantial." },
+  "Over 7%":    { style: "success", emoji: "🚨", headline: "You're paying way too much",       body: "Over 7% is well above what's available in today's market. There are lenders who can cut your repayments meaningfully. Book a 10-minute call with a broker now." },
 };
 
 const TOTAL_STEPS = 7;
@@ -491,15 +491,6 @@ function AIAnalysingScreen({
           <p className={`text-xs mt-3 leading-relaxed ${msg.style === "caution" ? "text-amber-600/70" : "text-white/45"}`}>
             This is just a guidance, final results may vary depending on your exact situation and different lender requirements.
           </p>
-        </motion.div>
-      )}
-
-      {/* Failed state */}
-      {reportData?.status === "failed" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="flex items-center gap-2 mt-4 text-sm text-red-500 bg-red-50 rounded-xl px-4 py-3 w-full">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>Report generation encountered an issue. Please continue to book your call.</span>
         </motion.div>
       )}
     </div>
