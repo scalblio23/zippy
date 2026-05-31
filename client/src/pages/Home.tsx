@@ -888,24 +888,22 @@ function StepContact({
           </div>
           <p className="text-xs font-bold tracking-widest uppercase text-gray-600">Pick a Date</p>
         </div>
-        {false ? (
-          <div />
-          <div className="grid grid-cols-2 gap-3">
-            {businessDays.map((d: Date, i: number) => {
-              const isSelected = form.bookingDate?.toDateString() === d.toDateString();
-              return (
-                <motion.button key={i}
-                  onClick={() => setForm(f => ({ ...f, bookingDate: d, bookingTime: "" }))}
-                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  className={`px-2 py-2.5 rounded-xl border-2 text-center transition-all duration-200
-                    ${isSelected ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]" : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"}`}>
-                  <p className="text-xs font-semibold">{d.toLocaleDateString("en-AU", { weekday: "short" })}</p>
-                  <p className="text-base font-bold leading-tight">{d.getDate()}</p>
-                  <p className="text-xs text-gray-400">{d.toLocaleDateString("en-AU", { month: "short" })}</p>
-                </motion.button>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          {businessDays.map((d: Date, i: number) => {
+            const isSelected = form.bookingDate?.toDateString() === d.toDateString();
+            return (
+              <motion.button key={i}
+                onClick={() => setForm(f => ({ ...f, bookingDate: d, bookingTime: "" }))}
+                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                className={`px-2 py-2.5 rounded-xl border-2 text-center transition-all duration-200
+                  ${isSelected ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]" : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"}`}>
+                <p className="text-xs font-semibold">{d.toLocaleDateString("en-AU", { weekday: "short" })}</p>
+                <p className="text-base font-bold leading-tight">{d.getDate()}</p>
+                <p className="text-xs text-gray-400">{d.toLocaleDateString("en-AU", { month: "short" })}</p>
+              </motion.button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Section 3 — Pick a Time */}
