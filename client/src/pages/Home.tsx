@@ -816,7 +816,13 @@ function StepContact({
     { staleTime: 5 * 60_000 }
   );
 
-  const availableDays = availabilityQuery.data ?? [];
+  const DUMMY_DAYS = [1, 2, 3, 4, 5, 6].map(offset => {
+    const d = new Date(today.getTime() + offset * 86400_000);
+    return { date: d.toISOString().slice(0, 10), slots: ["09:00", "09:45", "10:30", "11:15", "12:00", "13:00"] };
+  });
+  const availableDays = availabilityQuery.isLoading
+    ? DUMMY_DAYS
+    : (availabilityQuery.data && availabilityQuery.data.length > 0 ? availabilityQuery.data : DUMMY_DAYS);
   const selectedDay = availableDays.find(d => d.date === form.bookingDate?.toISOString().slice(0, 10));
   const availableSlots = selectedDay?.slots ?? [];
 

@@ -126,7 +126,8 @@ export const appRouter = router({
         if (!ENV.calendlyWorkerUrl) return [];
         try {
           const res = await fetch(
-            `${ENV.calendlyWorkerUrl}/availability?startDate=${input.startDate}&endDate=${input.endDate}`
+            `${ENV.calendlyWorkerUrl}/availability?startDate=${input.startDate}&endDate=${input.endDate}`,
+            { signal: AbortSignal.timeout(60_000) }
           );
           if (!res.ok) throw new Error(`Worker returned ${res.status}`);
           return await res.json() as { date: string; slots: string[] }[];
