@@ -101,8 +101,8 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", chromium: findChromium() ?? "not found" });
 });
 
-// Debug endpoint — returns all network URLs Calendly page fires, for diagnosing API paths
-app.get("/debug-urls", async (req, res) => {
+// Debug endpoint — returns raw JSON from Calendly's calendar/range API call
+app.get("/debug-availability", async (req, res) => {
   const executablePath = findChromium();
   const browser = await chromium.launch({
     executablePath,
@@ -111,14 +111,16 @@ app.get("/debug-urls", async (req, res) => {
   try {
     const page = await browser.newPage();
     page.setDefaultTimeout(30_000);
-    const urls = [];
-    page.on("response", response => {
+    let rawData = null;
+    page.on("response", async response => {
       const url = response.url();
-      if (url.includes("calendly.com")) urls.push({ url, status: response.status() });
+      if (url.includes("calendar/range")) {
+        try { rawData = await response.json(); } catch {}
+      }
     });
     await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
     await page.waitForTimeout(3000);
-    res.json(urls);
+    res.json(rawData ?? { error: "No calendar/range response captured" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   } finally {
