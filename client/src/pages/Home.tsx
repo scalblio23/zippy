@@ -830,11 +830,20 @@ function StepContact({
   const timePicked = !!form.bookingTime;
   const canSubmit = detailsDone && datePicked && timePicked;
 
-  const formatTime = (time: string) => {
-    const [h, m] = time.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+  const selectedTz = TIMEZONES.find(t => `${t.tz}|${t.offsetHours}` === form.timezone) ?? TIMEZONES[0];
+
+  // Convert a HH:MM slot (AEST UTC+10) to the user's selected timezone for display
+  const convertSlot = (slot: string): string => {
+    const BASE_OFFSET = 10;
+    const diff = selectedTz.offsetHours - BASE_OFFSET;
+    const [h, m] = slot.split(":").map(Number);
+    let totalMins = h * 60 + m + diff * 60;
+    totalMins = ((totalMins % 1440) + 1440) % 1440;
+    const nh = Math.floor(totalMins / 60);
+    const nm = totalMins % 60;
+    const ampm = nh >= 12 ? "PM" : "AM";
+    const h12 = nh % 12 === 0 ? 12 : nh % 12;
+    return `${h12}:${nm.toString().padStart(2, "0")} ${ampm}`;
   };
 
   return (
@@ -897,6 +906,20 @@ function StepContact({
         <div className="flex-1 border-t-2 border-dashed border-gray-200" />
       </div>
 
+      {/* Timezone selector */}
+      <div className="mb-4">
+        <label className="text-xs font-bold tracking-widest uppercase text-gray-500 block mb-1.5">Your Timezone</label>
+        <select
+          value={form.timezone}
+          onChange={e => setForm(f => ({ ...f, timezone: e.target.value, bookingTime: "" }))}
+          className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-sm font-medium text-gray-700 focus:outline-none focus:border-[#0D9E8F] transition-all"
+        >
+          {TIMEZONES.map(tz => (
+            <option key={`${tz.tz}|${tz.offsetHours}`} value={`${tz.tz}|${tz.offsetHours}`}>{tz.label}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Section 2 — Pick a Date */}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-3">
@@ -953,7 +976,7 @@ function StepContact({
                     className={`px-4 py-3 rounded-xl border-2 text-sm font-medium text-left transition-all duration-200
                       ${isSelected ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]" : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"}`}>
                     <div className="flex items-center justify-between">
-                      <span>{formatTime(slot)}</span>
+                      <span>{convertSlot(slot)}</span>
                       {isSelected && <Check className="w-3.5 h-3.5 text-[#0D5C55]" strokeWidth={2.5} />}
                     </div>
                   </motion.button>
