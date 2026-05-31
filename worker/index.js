@@ -156,16 +156,20 @@ app.get("/availability", async (req, res) => {
     await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
     await page.waitForTimeout(3000);
 
+    const fmt = new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Sydney",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
     const days = availabilityData
       .filter(d => d.status === "available")
       .map(d => ({
         date: d.date,
-        slots: (d.spots ?? []).map(s => {
-          const t = new Date(s.start_time);
-          const h = t.getUTCHours().toString().padStart(2, "0");
-          const m = t.getUTCMinutes().toString().padStart(2, "0");
-          return `${h}:${m}`;
-        }),
+        slots: (d.spots ?? [])
+          .filter(s => s.status === "available")
+          .map(s => fmt.format(new Date(s.start_time))),
       }))
       .filter(d => d.slots.length > 0);
 
