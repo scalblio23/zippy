@@ -41,8 +41,9 @@ const INTEREST_RANGES = [
 ];
 
 const TIMELINES = [
-  "As soon as possible", "Within 1–3 months", "Within 3–6 months",
-  "Within 6–12 months", "Just exploring options",
+  "😴 Low – I don't mind paying my current rate",
+  "😐 Medium – I'd like to see what rates are available",
+  "💪 High – I really want to avoid paying extra interest",
 ];
 
 const TIME_SLOTS = [
@@ -1779,11 +1780,11 @@ export default function Home() {
                 {/* Step 5: Timeline */}
                 {step === 5 && (
                   <div>
-                    <p className="text-xs font-semibold tracking-widest uppercase text-[#0D9E8F] mb-3">Timing</p>
+                    <p className="text-xs font-semibold tracking-widest uppercase text-[#0D9E8F] mb-3">Motivation</p>
                     <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900 }} className="text-4xl sm:text-5xl text-[#0D1A18] uppercase leading-none mb-2">
-                      If you can get a better rate, how soon would you like to change lender?
+                      How motivated are you to get a better interest rate?
                     </h2>
-                    <p className="text-gray-400 text-sm mb-6">We'll tailor our approach to your timeline.</p>
+                    <p className="text-gray-400 text-sm mb-6">We'll tailor our approach to your situation.</p>
                     <div className="space-y-2.5">
                       {TIMELINES.map(t => (
                         <OptionPill key={t} label={t} selected={form.timeline === t} onClick={() => {
