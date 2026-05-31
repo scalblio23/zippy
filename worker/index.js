@@ -3,6 +3,13 @@ import { chromium } from "playwright-core";
 import { accessSync } from "fs";
 
 const app = express();
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
 app.use(express.json());
 
 const CALENDLY_BASE = "https://calendly.com/zippyfinancial/45min";
