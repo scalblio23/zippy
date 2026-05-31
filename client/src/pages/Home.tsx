@@ -785,7 +785,7 @@ function ReportReadyScreen({
 }
 // ── Step Contact + Booking (combined) ────────────────────────────────────────────────────
 function StepContact({
-  form, setForm, onBack, onSubmit, isSubmitting, blockedDayKeys, blockedSlotKeys,
+  form, setForm, onBack, onSubmit, isSubmitting,
 }: {
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
@@ -797,9 +797,8 @@ function StepContact({
 }) {
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
-  const businessDays = useMemo(() => getNext2AvailableDays(blockedDayKeys, blockedSlotKeys), [blockedDayKeys, blockedSlotKeys]);
-  const selectedTz = TIMEZONES.find(t => `${t.tz}|${t.offsetHours}` === form.timezone) ?? TIMEZONES[0];
-  const displaySlot = (slot: string) => convertSlotToTimezone(slot, selectedTz.offsetHours);
+  const [calendlyBooked, setCalendlyBooked] = useState(false);
+
   const phoneRaw = form.phone.trim().replace(/\s/g, '');
   const phoneValid = /^04\d{8}$/.test(phoneRaw);
   const phoneError = phoneTouched && !phoneValid && phoneRaw.length > 0
@@ -810,16 +809,41 @@ function StepContact({
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
   const detailsDone = phoneValid && emailValid;
 
-  const datePicked = !!form.bookingDate;
-  const timePicked = !!form.bookingTime;
-  const canSubmit = detailsDone && datePicked && timePicked;
+  // Load Calendly widget script once
+  useEffect(() => {
+    if (document.querySelector('script[src*="calendly"]')) return;
+    const script = document.createElement("script");
+    script.src = "https://assets.calendly.com/assets/external/widget.js";
+    script.async = true;
+    document.head.appendChild(script);
+  }, []);
 
-   const handleDateSelect = (d: Date) => {
-    setForm(f => ({ ...f, bookingDate: d, bookingTime: "", bookingConfirmed: false }));
-  };
-  const handleTimeSelect = (t: string) => {
-    setForm(f => ({ ...f, bookingTime: t }));
-  };
+  // Listen for Calendly booking completion
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.event === "calendly.event_scheduled") {
+        setCalendlyBooked(true);
+        setForm(f => ({ ...f, bookingDate: new Date(), bookingTime: "via Calendly", bookingConfirmed: true }));
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [setForm]);
+
+  // Auto-submit once Calendly booking is confirmed
+  useEffect(() => {
+    if (calendlyBooked && detailsDone && !isSubmitting) {
+      onSubmit();
+    }
+  }, [calendlyBooked]);
+
+  const calendlyUrl = (() => {
+    const base = "https://calendly.com/zippyfinancial/45min";
+    const params = new URLSearchParams({ hide_gdpr_banner: "1" });
+    if (form.name) params.set("name", form.name);
+    if (form.email) params.set("email", form.email);
+    return `${base}?${params.toString()}`;
+  })();
 
   return (
     <div>
@@ -830,10 +854,10 @@ function StepContact({
       >
         You're one step away from fasttracking your mortgage refinance
       </h2>
-      <p className="text-sm font-semibold text-[#0D9E8F] text-center mb-6">Required: Book Your Call Below</p>
+      <p className="text-sm font-semibold text-[#0D9E8F] text-center mb-6">Required: Add your details then book your call below</p>
 
       {/* Section 1 — Add Your Details */}
-      <div className="mb-2">
+      <div className="mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-[#0D9E8F] flex items-center justify-center flex-shrink-0">
@@ -898,10 +922,7 @@ function StepContact({
       {/* Dashed divider with arrow */}
       <div className="flex items-center gap-2 my-5">
         <div className="flex-1 border-t-2 border-dashed border-gray-200" />
-        <motion.div
-          animate={{ y: [0, 4, 0] }}
-          transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
-        >
+        <motion.div animate={{ y: [0, 4, 0] }} transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path d="M9 3v10M5 9l4 4 4-4" stroke="#0D9E8F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -909,129 +930,37 @@ function StepContact({
         <div className="flex-1 border-t-2 border-dashed border-gray-200" />
       </div>
 
-      {/* Section 2 — Pick a Date */}
-      <div className="mb-5">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-6 h-6 rounded-full bg-[#0D9E8F] flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-bold">2</span>
+      {/* Section 2 — Book Your Call (Calendly) */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-[#0D9E8F] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-bold">2</span>
+            </div>
+            <p className="text-xs font-bold tracking-widest uppercase text-gray-600">Book Your Call</p>
           </div>
-          <p className="text-xs font-bold tracking-widest uppercase text-gray-600">Pick a Date</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {businessDays.map((d: Date, i: number) => {
-            const isSelected = form.bookingDate?.toDateString() === d.toDateString();
-            return (
-              <motion.button
-                key={i}
-                onClick={() => handleDateSelect(d)}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className={`px-2 py-2.5 rounded-xl border-2 text-center transition-all duration-200
-                  ${isSelected
-                    ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]"
-                    : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"
-                  }`}
-              >
-                <p className="text-xs font-semibold">{d.toLocaleDateString("en-AU", { weekday: "short" })}</p>
-                <p className="text-base font-bold leading-tight">{d.getDate()}</p>
-                <p className="text-xs text-gray-400">{d.toLocaleDateString("en-AU", { month: "short" })}</p>
-              </motion.button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Time slots — revealed after date picked */}
-      <AnimatePresence>
-        {datePicked && (
-          <motion.div
-            key="time-slots"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mb-5"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold tracking-widest uppercase text-[#0D9E8F]">
-                Choose a time on {formatDate(form.bookingDate!)}
-              </p>
-            </div>
-            {/* Timezone selector */}
-            <div className="mb-3">
-              <label className="text-xs text-gray-400 font-medium mb-1 block">Your timezone</label>
-              <select
-                value={form.timezone}
-                onChange={e => setForm(f => ({ ...f, timezone: e.target.value, bookingTime: "", bookingConfirmed: false }))}
-                className="w-full px-3 py-2 rounded-xl border-2 border-gray-100 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:border-[#0D9E8F] transition-all"
-              >
-                {TIMEZONES.map(t => (
-                  <option key={`${t.tz}|${t.offsetHours}`} value={`${t.tz}|${t.offsetHours}`}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {TIME_SLOTS.map(slot => {
-                const isSelected = form.bookingTime === slot;
-                const blocked = isSlotBlocked(form.bookingDate, slot, blockedDayKeys, blockedSlotKeys);
-                return (
-                  <motion.button
-                    key={slot}
-                    onClick={() => { if (!blocked) handleTimeSelect(slot); }}
-                    disabled={blocked}
-                    whileHover={blocked ? {} : { scale: 1.02 }}
-                    whileTap={blocked ? {} : { scale: 0.98 }}
-                    className={`px-4 py-3 rounded-xl border-2 text-sm font-medium text-left transition-all duration-200
-                      ${blocked
-                        ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
-                        : isSelected
-                        ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]"
-                        : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"
-                      }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>{displaySlot(slot)}</span>
-                      {blocked
-                        ? <span className="text-[10px] text-gray-300 font-semibold uppercase">Unavailable</span>
-                        : isSelected && <Check className="w-3.5 h-3.5 text-[#0D5C55]" strokeWidth={2.5} />
-                      }
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Nav */}
-      <div className="flex gap-3 mt-2">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-5 py-3 rounded-xl border-2 border-gray-200 text-gray-400 font-medium text-sm hover:border-gray-300 hover:text-gray-600 transition-all"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Back
-        </button>
-        <motion.button
-          onClick={onSubmit}
-          disabled={!canSubmit || isSubmitting}
-          whileHover={canSubmit && !isSubmitting ? { scale: 1.02, backgroundColor: "#0D5C55" } : {}}
-          whileTap={canSubmit && !isSubmitting ? { scale: 0.98 } : {}}
-          className={`flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold tracking-wide transition-all duration-200
-            ${canSubmit && !isSubmitting
-              ? "bg-[#0D9E8F] text-white shadow-lg shadow-teal-200"
-              : "bg-gray-100 text-gray-300 cursor-not-allowed"
-            }`}
-          style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, letterSpacing: "0.05em", fontSize: "1rem" }}
-        >
-          {isSubmitting ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> SUBMITTING...</>
-          ) : (
-            <> SUBMIT MY ENQUIRY <ChevronRightIcon className="w-4 h-4" /></>
+          {calendlyBooked && (
+            <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-1 text-[#0D9E8F] text-xs font-semibold">
+              <Check className="w-3.5 h-3.5" strokeWidth={3} /> Booked
+            </motion.div>
           )}
-        </motion.button>
+        </div>
+        <div
+          className="calendly-inline-widget rounded-xl overflow-hidden border-2 border-gray-100"
+          data-url={calendlyUrl}
+          style={{ minWidth: "320px", height: "700px" }}
+        />
       </div>
+
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1.5 px-5 py-3 rounded-xl border-2 border-gray-200 text-gray-400 font-medium text-sm hover:border-gray-300 hover:text-gray-600 transition-all"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        Back
+      </button>
     </div>
   );
 }
