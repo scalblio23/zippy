@@ -1265,8 +1265,9 @@ export default function Home() {
     bookingDate: null, bookingTime: "", bookingTimezone: "", bookingConfirmed: false, timezone: detectTimezone(),
   });
 
-   const submitMutation = trpc.survey.submit.useMutation();
+  const submitMutation = trpc.survey.submit.useMutation();
   const { data: blockedData = [] } = trpc.calendar.getBlocked.useQuery();
+  const trpcUtils = trpc.useUtils();
   const blockedDayKeySet = useMemo(() => {
     const s = new Set<string>();
     blockedData.filter(b => !b.slotKey && b.dateKey.split("-").length === 3).forEach(b => s.add(b.dateKey));
@@ -1539,7 +1540,14 @@ export default function Home() {
                 </svg>
               </motion.div>
               <motion.button
-                onClick={() => setPhase("survey")}
+                onClick={() => {
+                  const today = new Date();
+                  trpcUtils.calendar.getAvailability.prefetch({
+                    startDate: today.toISOString().slice(0, 10),
+                    endDate: new Date(today.getTime() + 14 * 86400_000).toISOString().slice(0, 10),
+                  });
+                  setPhase("survey");
+                }}
                 whileHover={{ scale: 1.03, backgroundColor: "#0D5C55" }}
                 whileTap={{ scale: 0.97 }}
                 className="inline-flex items-center justify-center gap-3 px-10 py-5 rounded-xl font-bold text-lg text-white transition-colors duration-200"
