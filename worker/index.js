@@ -112,12 +112,14 @@ app.get("/debug-availability", async (req, res) => {
     const page = await browser.newPage();
     page.setDefaultTimeout(30_000);
     let rawData = null;
-    page.on("response", async response => {
-      const url = response.url();
-      if (url.includes("calendar/range")) {
-        try { rawData = await response.json(); } catch {}
-      }
+
+    // Use route interception to properly buffer and capture the response body
+    await page.route("**/calendar/range**", async route => {
+      const response = await route.fetch();
+      try { rawData = await response.json(); } catch {}
+      await route.fulfill({ response });
     });
+
     await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
     await page.waitForTimeout(3000);
     res.json(rawData ?? { error: "No calendar/range response captured" });
@@ -140,34 +142,19 @@ app.get("/availability", async (req, res) => {
     const page = await browser.newPage();
     page.setDefaultTimeout(30_000);
 
-    // Intercept Calendly's own API calls to grab availability data
+    // Use route interception to properly buffer and capture the calendar/range response
     const availabilityData = [];
-    const capturedUrls = [];
-    page.on("response", async response => {
-      const url = response.url();
-      capturedUrls.push(url);
-      // Broad match — Calendly has used several API path patterns
-      if (
-        url.includes("calendar/range") ||
-        url.includes("date_range") ||
-        url.includes("availability") ||
-        url.includes("/days") ||
-        url.includes("booking/ranges") ||
-        url.includes("event_type") && url.includes("available")
-      ) {
-        try {
-          const json = await response.json();
-          if (json.days) availabilityData.push(...json.days);
-          else if (Array.isArray(json)) availabilityData.push(...json);
-        } catch {}
-      }
+    await page.route("**/calendar/range**", async route => {
+      const response = await route.fetch();
+      try {
+        const json = await response.json();
+        if (json.days) availabilityData.push(...json.days);
+      } catch {}
+      await route.fulfill({ response });
     });
 
     await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
     await page.waitForTimeout(3000);
-
-    console.log(`[Worker] Captured ${capturedUrls.length} URLs from Calendly page`);
-    capturedUrls.forEach(u => console.log("[Worker] URL:", u));
 
     const days = availabilityData
       .filter(d => d.status === "available")
