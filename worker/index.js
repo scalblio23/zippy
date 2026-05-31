@@ -101,38 +101,55 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", chromium: findChromium() ?? "not found" });
 });
 
-// Availability endpoint — fetches real slots from Calendly's internal API
+// Availability endpoint — scrapes available dates+times from Calendly via headless Chromium
 app.get("/availability", async (req, res) => {
-  const { startDate, endDate } = req.query;
-  if (!startDate || !endDate) {
-    return res.status(400).json({ error: "Missing startDate or endDate query params" });
-  }
+  const executablePath = findChromium();
+  const browser = await chromium.launch({
+    executablePath,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--headless=new"],
+  });
+
   try {
-    const url = `https://calendly.com/api/booking/event_types/zippyfinancial/45min/calendar/range` +
-      `?timezone=Australia%2FSydney&diagnostics=false&range_start=${startDate}&range_end=${endDate}`;
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ZippyBot/1.0)",
-        "Accept": "application/json",
-      },
+    const page = await browser.newPage();
+    page.setDefaultTimeout(30_000);
+
+    // Intercept Calendly's own API calls to grab availability data
+    const availabilityData = [];
+    page.on("response", async response => {
+      const url = response.url();
+      if (url.includes("calendar/range") || url.includes("date_range")) {
+        try {
+          const json = await response.json();
+          if (json.days) availabilityData.push(...json.days);
+        } catch {}
+      }
     });
-    if (!response.ok) throw new Error(`Calendly API returned ${response.status}`);
-    const data = await response.json();
-    const days = (data.days ?? [])
+
+    await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
+
+    // Wait a moment for all data to load
+    await page.waitForTimeout(2000);
+
+    const days = availabilityData
       .filter(d => d.status === "available")
       .map(d => ({
         date: d.date,
-        slots: d.spots.map(s => {
+        slots: (d.spots ?? []).map(s => {
           const t = new Date(s.start_time);
           const h = t.getUTCHours().toString().padStart(2, "0");
           const m = t.getUTCMinutes().toString().padStart(2, "0");
           return `${h}:${m}`;
         }),
-      }));
+      }))
+      .filter(d => d.slots.length > 0);
+
+    console.log(`[Worker] Scraped ${days.length} available days`);
     res.json(days);
   } catch (err) {
-    console.error("[Worker] Availability fetch failed:", err.message);
+    console.error("[Worker] Availability scrape failed:", err.message);
     res.status(500).json({ error: err.message });
+  } finally {
+    await browser.close();
   }
 });
 
