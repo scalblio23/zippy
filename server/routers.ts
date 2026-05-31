@@ -123,8 +123,13 @@ export const appRouter = router({
     getAvailability: publicProcedure
       .input(z.object({ startDate: z.string(), endDate: z.string() }))
       .query(async ({ input }) => {
+        if (!ENV.calendlyWorkerUrl) return [];
         try {
-          return await getCalendlyAvailability(input.startDate, input.endDate);
+          const res = await fetch(
+            `${ENV.calendlyWorkerUrl}/availability?startDate=${input.startDate}&endDate=${input.endDate}`
+          );
+          if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+          return await res.json() as { date: string; slots: string[] }[];
         } catch (err) {
           console.error("[Calendly] Availability fetch failed:", err);
           return [];

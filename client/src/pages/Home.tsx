@@ -808,7 +808,17 @@ function StepContact({
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
   const detailsDone = phoneValid && emailValid;
 
-  const businessDays = useMemo(() => getNext2AvailableDays(blockedDayKeys, blockedSlotKeys), [blockedDayKeys, blockedSlotKeys]);
+  const today = new Date();
+  const startDate = today.toISOString().slice(0, 10);
+  const endDate = new Date(today.getTime() + 14 * 86400_000).toISOString().slice(0, 10);
+  const availabilityQuery = trpc.calendar.getAvailability.useQuery(
+    { startDate, endDate },
+    { staleTime: 5 * 60_000 }
+  );
+  const availableDays = availabilityQuery.data ?? [];
+  const selectedDay = availableDays.find(d => d.date === form.bookingDate?.toISOString().slice(0, 10));
+  const availableSlots = selectedDay?.slots ?? [];
+
   const datePicked = !!form.bookingDate;
   const timePicked = !!form.bookingTime;
   const canSubmit = detailsDone && datePicked && timePicked;
@@ -888,27 +898,34 @@ function StepContact({
           </div>
           <p className="text-xs font-bold tracking-widest uppercase text-gray-600">Pick a Date</p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {businessDays.map((d: Date, i: number) => {
-            const isSelected = form.bookingDate?.toDateString() === d.toDateString();
-            return (
-              <motion.button key={i}
-                onClick={() => setForm(f => ({ ...f, bookingDate: d, bookingTime: "" }))}
-                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                className={`px-2 py-2.5 rounded-xl border-2 text-center transition-all duration-200
-                  ${isSelected ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]" : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"}`}>
-                <p className="text-xs font-semibold">{d.toLocaleDateString("en-AU", { weekday: "short" })}</p>
-                <p className="text-base font-bold leading-tight">{d.getDate()}</p>
-                <p className="text-xs text-gray-400">{d.toLocaleDateString("en-AU", { month: "short" })}</p>
-              </motion.button>
-            );
-          })}
-        </div>
+        {availabilityQuery.isLoading ? (
+          <div className="flex items-center justify-center py-8 gap-2 text-gray-400 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading available dates...
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {availableDays.slice(0, 6).map(day => {
+              const d = new Date(day.date + "T00:00:00");
+              const isSelected = form.bookingDate?.toISOString().slice(0, 10) === day.date;
+              return (
+                <motion.button key={day.date}
+                  onClick={() => setForm(f => ({ ...f, bookingDate: d, bookingTime: "" }))}
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  className={`px-2 py-2.5 rounded-xl border-2 text-center transition-all duration-200
+                    ${isSelected ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]" : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"}`}>
+                  <p className="text-xs font-semibold">{d.toLocaleDateString("en-AU", { weekday: "short" })}</p>
+                  <p className="text-base font-bold leading-tight">{d.getDate()}</p>
+                  <p className="text-xs text-gray-400">{d.toLocaleDateString("en-AU", { month: "short" })}</p>
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Section 3 — Pick a Time */}
       <AnimatePresence>
-        {datePicked && (
+        {datePicked && availableSlots.length > 0 && (
           <motion.div key="time-slots" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="mb-5">
             <div className="flex items-center gap-2 mb-3">
@@ -920,20 +937,16 @@ function StepContact({
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {TIME_SLOTS.map(slot => {
+              {availableSlots.map(slot => {
                 const isSelected = form.bookingTime === slot;
-                const blocked = isSlotBlocked(form.bookingDate, slot, blockedDayKeys, blockedSlotKeys);
                 return (
                   <motion.button key={slot}
-                    onClick={() => { if (!blocked) setForm(f => ({ ...f, bookingTime: slot })); }}
-                    disabled={blocked}
-                    whileHover={blocked ? {} : { scale: 1.02 }} whileTap={blocked ? {} : { scale: 0.98 }}
+                    onClick={() => setForm(f => ({ ...f, bookingTime: slot }))}
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                     className={`px-4 py-3 rounded-xl border-2 text-sm font-medium text-left transition-all duration-200
-                      ${blocked ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
-                        : isSelected ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]"
-                        : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"}`}>
+                      ${isSelected ? "border-[#0D5C55] bg-[#0D5C55]/5 text-[#0D5C55]" : "border-gray-100 bg-white text-gray-600 hover:border-gray-200"}`}>
                     <div className="flex items-center justify-between">
-                      <span>{slot}</span>
+                      <span>{formatTime(slot)}</span>
                       {isSelected && <Check className="w-3.5 h-3.5 text-[#0D5C55]" strokeWidth={2.5} />}
                     </div>
                   </motion.button>
