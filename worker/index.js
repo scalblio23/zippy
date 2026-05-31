@@ -101,6 +101,31 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", chromium: findChromium() ?? "not found" });
 });
 
+// Debug endpoint — returns all network URLs Calendly page fires, for diagnosing API paths
+app.get("/debug-urls", async (req, res) => {
+  const executablePath = findChromium();
+  const browser = await chromium.launch({
+    executablePath,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--headless=new"],
+  });
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(30_000);
+    const urls = [];
+    page.on("response", response => {
+      const url = response.url();
+      if (url.includes("calendly.com")) urls.push({ url, status: response.status() });
+    });
+    await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
+    await page.waitForTimeout(3000);
+    res.json(urls);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    await browser.close();
+  }
+});
+
 // Availability endpoint — scrapes available dates+times from Calendly via headless Chromium
 app.get("/availability", async (req, res) => {
   const executablePath = findChromium();
@@ -115,20 +140,32 @@ app.get("/availability", async (req, res) => {
 
     // Intercept Calendly's own API calls to grab availability data
     const availabilityData = [];
+    const capturedUrls = [];
     page.on("response", async response => {
       const url = response.url();
-      if (url.includes("calendar/range") || url.includes("date_range")) {
+      capturedUrls.push(url);
+      // Broad match — Calendly has used several API path patterns
+      if (
+        url.includes("calendar/range") ||
+        url.includes("date_range") ||
+        url.includes("availability") ||
+        url.includes("/days") ||
+        url.includes("booking/ranges") ||
+        url.includes("event_type") && url.includes("available")
+      ) {
         try {
           const json = await response.json();
           if (json.days) availabilityData.push(...json.days);
+          else if (Array.isArray(json)) availabilityData.push(...json);
         } catch {}
       }
     });
 
     await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
+    await page.waitForTimeout(3000);
 
-    // Wait a moment for all data to load
-    await page.waitForTimeout(2000);
+    console.log(`[Worker] Captured ${capturedUrls.length} URLs from Calendly page`);
+    capturedUrls.forEach(u => console.log("[Worker] URL:", u));
 
     const days = availabilityData
       .filter(d => d.status === "available")
