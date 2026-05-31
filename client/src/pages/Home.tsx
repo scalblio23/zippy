@@ -41,9 +41,9 @@ const INTEREST_RANGES = [
 ];
 
 const TIMELINES = [
-  { emoji: "😴", level: "Low", desc: "I don't mind paying my current rate", value: "Low" },
-  { emoji: "😐", level: "Medium", desc: "I'd like to see what rates are available", value: "Medium" },
-  { emoji: "💪", level: "High", desc: "I really want to avoid paying extra interest", value: "High" },
+  { emoji: "😴", level: "Low", desc: "I don't mind paying my current rate", value: "Low", color: "#EF4444" },
+  { emoji: "😐", level: "Medium", desc: "I'd like to see what rates are available", value: "Medium", color: "#F97316" },
+  { emoji: "💪", level: "High", desc: "I really want to avoid paying extra interest", value: "High", color: "#22C55E" },
 ];
 
 const TIME_SLOTS = [
@@ -1786,13 +1786,13 @@ export default function Home() {
                     </h2>
                     <p className="text-gray-400 text-sm mb-6">We'll tailor our approach to your situation.</p>
                     <div className="grid grid-cols-3 gap-3">
-                      {TIMELINES.map(({ emoji, level, desc, value }) => (
+                      {TIMELINES.map(({ emoji, level, desc, value, color }) => (
                         <motion.button
                           key={value}
                           onClick={() => { setForm(f => ({ ...f, timeline: value })); setTimeout(() => go(6), 320); }}
                           whileHover={{ y: -2, boxShadow: "0 6px 20px rgba(13,92,85,0.15)" }}
                           whileTap={{ scale: 0.97 }}
-                          className={`relative flex flex-col items-center justify-center gap-3 p-5 rounded-xl border-2 transition-all duration-200 bg-white text-center
+                          className={`relative flex flex-col items-center justify-center gap-3 pt-0 pb-5 px-5 rounded-xl border-2 overflow-hidden transition-all duration-200 bg-white text-center
                             ${form.timeline === value ? "border-[#0D5C55] shadow-md" : "border-gray-100 hover:border-gray-200"}`}
                         >
                           {form.timeline === value && (
@@ -1801,9 +1801,10 @@ export default function Home() {
                               <Check className="w-3 h-3 text-white" strokeWidth={3} />
                             </motion.div>
                           )}
+                          <div className="w-full h-2 mb-2 rounded-t-xl" style={{ backgroundColor: color }} />
                           <span className="text-4xl">{emoji}</span>
-                          <span className="text-sm font-bold text-[#0D1A18]">{level}</span>
-                          <span className="text-xs text-gray-400 leading-tight">{desc}</span>
+                          <span className="text-base font-extrabold text-[#0D1A18]">{level}</span>
+                          <span className="text-xs font-medium text-gray-500 leading-tight">{desc}</span>
                         </motion.button>
                       ))}
                     </div>
