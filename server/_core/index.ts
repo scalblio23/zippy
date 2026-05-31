@@ -63,4 +63,16 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+process.on("uncaughtException", (err) => {
+  console.error("[CRASH] Uncaught exception:", err);
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[CRASH] Unhandled rejection:", reason);
+  process.exit(1);
+});
+
+startServer().catch((err) => {
+  console.error("[CRASH] Server failed to start:", err);
+  process.exit(1);
+});
