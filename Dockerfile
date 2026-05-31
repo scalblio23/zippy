@@ -4,7 +4,6 @@ FROM node:22-slim
 RUN apt-get update && apt-get install -y \
   chromium \
   fonts-liberation \
-  libappindicator3-1 \
   libasound2 \
   libatk-bridge2.0-0 \
   libatk1.0-0 \
@@ -20,7 +19,6 @@ RUN apt-get update && apt-get install -y \
   libxdamage1 \
   libxfixes3 \
   libxrandr2 \
-  libxss1 \
   libxtst6 \
   xdg-utils \
   --no-install-recommends && \
@@ -29,6 +27,7 @@ RUN apt-get update && apt-get install -y \
 ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_BROWSERS_PATH=0
+ENV NODE_ENV=production
 
 WORKDIR /app
 

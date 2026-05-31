@@ -108,7 +108,12 @@ export const appRouter = router({
     getAvailability: publicProcedure
       .input(z.object({ startDate: z.string(), endDate: z.string() }))
       .query(async ({ input }) => {
-        return getCalendlyAvailability(input.startDate, input.endDate);
+        try {
+          return await getCalendlyAvailability(input.startDate, input.endDate);
+        } catch (err) {
+          console.error("[Calendly] Availability fetch failed:", err);
+          return [];
+        }
       }),
 
     // Get all blocked slots
