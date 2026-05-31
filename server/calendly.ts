@@ -1,5 +1,3 @@
-// playwright-core is imported lazily inside bookCalendlySlot to avoid
-// crashing the server if the module fails to load at startup
 import { accessSync } from "fs";
 
 const CALENDLY_USER = "zippyfinancial";
@@ -63,6 +61,9 @@ export interface BookingDetails {
 }
 
 export async function bookCalendlySlot(details: BookingDetails): Promise<void> {
+  // Headless booking disabled — requires Playwright in a separate worker service
+  console.log(`[Calendly] Booking requested for ${details.name} on ${details.date} at ${details.time} — headless booking not available in this environment`);
+  return;
   const { chromium } = await import("playwright-core");
   const executablePath = findChromium();
 
