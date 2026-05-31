@@ -142,15 +142,16 @@ app.get("/availability", async (req, res) => {
     const page = await browser.newPage();
     page.setDefaultTimeout(30_000);
 
-    // Use route interception to properly buffer and capture the calendar/range response
+    // Use route interception — buffer body first so we can both read it and pass it through
     const availabilityData = [];
     await page.route("**/calendar/range**", async route => {
       const response = await route.fetch();
+      const body = await response.body();
       try {
-        const json = await response.json();
+        const json = JSON.parse(body.toString());
         if (json.days) availabilityData.push(...json.days);
       } catch {}
-      await route.fulfill({ response });
+      await route.fulfill({ response, body });
     });
 
     await page.goto("https://calendly.com/zippyfinancial/45min", { waitUntil: "networkidle" });
