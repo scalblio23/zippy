@@ -41,9 +41,9 @@ const INTEREST_RANGES = [
 ];
 
 const TIMELINES = [
-  "😴 Low – I don't mind paying my current rate",
-  "😐 Medium – I'd like to see what rates are available",
-  "💪 High – I really want to avoid paying extra interest",
+  { emoji: "😴", level: "Low", desc: "I don't mind paying my current rate", value: "Low" },
+  { emoji: "😐", level: "Medium", desc: "I'd like to see what rates are available", value: "Medium" },
+  { emoji: "💪", level: "High", desc: "I really want to avoid paying extra interest", value: "High" },
 ];
 
 const TIME_SLOTS = [
@@ -1785,12 +1785,26 @@ export default function Home() {
                       How motivated are you to get a better interest rate?
                     </h2>
                     <p className="text-gray-400 text-sm mb-6">We'll tailor our approach to your situation.</p>
-                    <div className="space-y-2.5">
-                      {TIMELINES.map(t => (
-                        <OptionPill key={t} label={t} selected={form.timeline === t} onClick={() => {
-                          setForm(f => ({ ...f, timeline: t }));
-                          setTimeout(() => go(6), 320);
-                        }} />
+                    <div className="grid grid-cols-3 gap-3">
+                      {TIMELINES.map(({ emoji, level, desc, value }) => (
+                        <motion.button
+                          key={value}
+                          onClick={() => { setForm(f => ({ ...f, timeline: value })); setTimeout(() => go(6), 320); }}
+                          whileHover={{ y: -2, boxShadow: "0 6px 20px rgba(13,92,85,0.15)" }}
+                          whileTap={{ scale: 0.97 }}
+                          className={`relative flex flex-col items-center justify-center gap-3 p-5 rounded-xl border-2 transition-all duration-200 bg-white text-center
+                            ${form.timeline === value ? "border-[#0D5C55] shadow-md" : "border-gray-100 hover:border-gray-200"}`}
+                        >
+                          {form.timeline === value && (
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#0D5C55] flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                          <span className="text-4xl">{emoji}</span>
+                          <span className="text-sm font-bold text-[#0D1A18]">{level}</span>
+                          <span className="text-xs text-gray-400 leading-tight">{desc}</span>
+                        </motion.button>
                       ))}
                     </div>
                     <NavButtons onBack={() => go(4)} onNext={() => go(6)} canNext={canProceed[5]} />
