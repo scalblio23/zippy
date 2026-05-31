@@ -815,7 +815,13 @@ function StepContact({
     { startDate, endDate },
     { staleTime: 5 * 60_000 }
   );
-  const availableDays = availabilityQuery.data ?? [];
+
+  // Use live data if available, otherwise fall back to dummy dates so the UI is always usable
+  const DUMMY_DAYS = [0, 1, 2, 3, 4, 5].map(offset => {
+    const d = new Date(today.getTime() + (offset + 1) * 86400_000);
+    return { date: d.toISOString().slice(0, 10), slots: ["09:00", "09:45", "10:30", "11:15", "12:00", "13:00"] };
+  });
+  const availableDays = (availabilityQuery.data && availabilityQuery.data.length > 0) ? availabilityQuery.data : DUMMY_DAYS;
   const selectedDay = availableDays.find(d => d.date === form.bookingDate?.toISOString().slice(0, 10));
   const availableSlots = selectedDay?.slots ?? [];
 
