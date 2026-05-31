@@ -1,4 +1,5 @@
-import { chromium } from "playwright-core";
+// playwright-core is imported lazily inside bookCalendlySlot to avoid
+// crashing the server if the module fails to load at startup
 
 const CALENDLY_USER = "zippyfinancial";
 const CALENDLY_EVENT = "45min";
@@ -61,7 +62,7 @@ export interface BookingDetails {
 }
 
 export async function bookCalendlySlot(details: BookingDetails): Promise<void> {
-  // Find chromium executable — check common paths for nixpacks/system installs
+  const { chromium } = await import("playwright-core");
   const executablePath = findChromium();
 
   const browser = await chromium.launch({
