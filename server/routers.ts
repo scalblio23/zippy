@@ -6,7 +6,22 @@ import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot } from "./db";
 import { z } from "zod";
-import { getCalendlyAvailability, bookCalendlySlot } from "./calendly";
+import { getCalendlyAvailability } from "./calendly";
+import { ENV } from "./_core/env";
+
+async function callCalendlyWorker(payload: { name: string; email: string; phone: string; date: string; time: string }) {
+  if (!ENV.calendlyWorkerUrl) return;
+  try {
+    await fetch(`${ENV.calendlyWorkerUrl}/book`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    console.log("[Calendly] Worker called for", payload.name);
+  } catch (err) {
+    console.error("[Calendly] Worker call failed:", err);
+  }
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -56,15 +71,15 @@ export const appRouter = router({
           console.error("[AI Report] Generation failed for lead", leadId, err)
         );
 
-        // Book Calendly slot in background (fire-and-forget)
-        if (input.bookingDate && input.bookingTime && input.bookingTime !== "via Calendly") {
-          bookCalendlySlot({
+        // Call Calendly worker to book slot in background (fire-and-forget)
+        if (input.bookingDate && input.bookingTime) {
+          callCalendlyWorker({
             name: input.name,
             email: input.email,
             phone: input.phone,
             date: input.bookingDate,
             time: input.bookingTime,
-          }).catch(err => console.error("[Calendly] Booking failed:", err));
+          });
         }
 
         // Notify owner
