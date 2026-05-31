@@ -1,5 +1,6 @@
 // playwright-core is imported lazily inside bookCalendlySlot to avoid
 // crashing the server if the module fails to load at startup
+import { accessSync } from "fs";
 
 const CALENDLY_USER = "zippyfinancial";
 const CALENDLY_EVENT = "45min";
@@ -138,7 +139,7 @@ function findChromium(): string | undefined {
   for (const p of candidates) {
     if (!p) continue;
     try {
-      require("fs").accessSync(p);
+      accessSync(p);
       return p;
     } catch {}
   }
