@@ -6,6 +6,7 @@ import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot } from "./db";
 import { z } from "zod";
+import { getCalendlyAvailability, bookCalendlySlot } from "./calendly";
 
 export const appRouter = router({
   system: systemRouter,
@@ -55,6 +56,17 @@ export const appRouter = router({
           console.error("[AI Report] Generation failed for lead", leadId, err)
         );
 
+        // Book Calendly slot in background (fire-and-forget)
+        if (input.bookingDate && input.bookingTime && input.bookingTime !== "via Calendly") {
+          bookCalendlySlot({
+            name: input.name,
+            email: input.email,
+            phone: input.phone,
+            date: input.bookingDate,
+            time: input.bookingTime,
+          }).catch(err => console.error("[Calendly] Booking failed:", err));
+        }
+
         // Notify owner
         await notifyOwner({
           title: `New refinance enquiry from ${input.name}`,
@@ -92,6 +104,13 @@ export const appRouter = router({
   }),
 
   calendar: router({
+    // Get available slots from Calendly for a date range
+    getAvailability: publicProcedure
+      .input(z.object({ startDate: z.string(), endDate: z.string() }))
+      .query(async ({ input }) => {
+        return getCalendlyAvailability(input.startDate, input.endDate);
+      }),
+
     // Get all blocked slots
     getBlocked: publicProcedure.query(async () => {
       return getBlockedSlots();
