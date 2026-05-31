@@ -813,16 +813,10 @@ function StepContact({
   const endDate = new Date(today.getTime() + 14 * 86400_000).toISOString().slice(0, 10);
   const availabilityQuery = trpc.calendar.getAvailability.useQuery(
     { startDate, endDate },
-    { staleTime: 5 * 60_000 }
+    { staleTime: 5 * 60_000, refetchInterval: (data) => (!data || data.length === 0) ? 10_000 : false }
   );
 
-  const DUMMY_DAYS = [1, 2, 3, 4, 5, 6].map(offset => {
-    const d = new Date(today.getTime() + offset * 86400_000);
-    return { date: d.toISOString().slice(0, 10), slots: ["09:00", "09:45", "10:30", "11:15", "12:00", "13:00"] };
-  });
-  const availableDays = availabilityQuery.isLoading
-    ? DUMMY_DAYS
-    : (availabilityQuery.data && availabilityQuery.data.length > 0 ? availabilityQuery.data : DUMMY_DAYS);
+  const availableDays = availabilityQuery.data ?? [];
   const selectedDay = availableDays.find(d => d.date === form.bookingDate?.toISOString().slice(0, 10));
   const availableSlots = selectedDay?.slots ?? [];
 
@@ -930,7 +924,11 @@ function StepContact({
         </div>
         {availabilityQuery.isLoading ? (
           <div className="flex items-center justify-center py-8 gap-2 text-gray-400 text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading available dates...
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading available dates from Calendly...
+          </div>
+        ) : availableDays.length === 0 ? (
+          <div className="flex items-center justify-center py-8 gap-2 text-gray-400 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" /> Fetching availability, please wait...
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
