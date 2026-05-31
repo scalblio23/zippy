@@ -2,12 +2,27 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import { execSync } from "child_process";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+
+// Log Chromium path on startup to help configure CHROMIUM_EXECUTABLE_PATH
+try {
+  const path = execSync("which chromium || which chromium-browser || which google-chrome 2>/dev/null").toString().trim();
+  console.log("[Chromium] Found at:", path);
+} catch {
+  console.log("[Chromium] Not found via which — trying find...");
+  try {
+    const path = execSync("find /nix /usr -name 'chromium' -type f 2>/dev/null | head -1").toString().trim();
+    console.log("[Chromium] Found at:", path || "NOT FOUND");
+  } catch {
+    console.log("[Chromium] Could not locate Chromium binary");
+  }
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
