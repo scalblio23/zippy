@@ -5,7 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
-import { appRouter, runCalendlySync } from "../routers";
+import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
@@ -60,9 +60,6 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
-    // Sync Calendly availability immediately then every hour
-    runCalendlySync().catch(err => console.error("[CalendlySync] Startup sync failed:", err));
-    setInterval(() => runCalendlySync().catch(err => console.error("[CalendlySync] Hourly sync failed:", err)), 60 * 60 * 1000);
   });
 }
 
