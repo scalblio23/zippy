@@ -123,8 +123,10 @@ export async function getAllLeads(): Promise<Lead[]> {
   return db.select().from(leads).orderBy(leads.createdAt);
 }
 
-export async function deleteLead(_id: number): Promise<void> {
-  // Deletion disabled — leads are permanent in the DB
+export async function deleteLead(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(leads).where(eq(leads.id, id));
 }
 
 // ── Blocked slots helpers ──────────────────────────────────────────────────────

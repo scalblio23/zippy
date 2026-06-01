@@ -108,7 +108,6 @@ export const appRouter = router({
       return getAllLeads();
     }),
 
-    // Soft-delete a lead — sets deletedAt, row stays in MySQL forever
     deleteLead: publicProcedure
       .input(z.object({ leadId: z.number() }))
       .mutation(async ({ input }) => {
