@@ -98,10 +98,14 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
     { startDate: weekStartStr, endDate: weekEndStr },
     { staleTime: 30 * 60_000 }
   );
+  // Store as date|HH (hour only) so any slot within that hour marks it available
   const calendlyAvailable = useMemo(() => {
     const s = new Set<string>();
     for (const day of calendlyData) {
-      for (const slot of day.slots) s.add(`${day.date}|${slot}`);
+      for (const slot of day.slots) {
+        const hour = slot.split(":")[0];
+        s.add(`${day.date}|${hour}`);
+      }
     }
     return s;
   }, [calendlyData]);
@@ -341,8 +345,7 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
                   // Grey out slots not available in Calendly
                   const [hStr] = slot.split(":");
                   const isCalendlyUnavailable = calendlyAvailable.size > 0 &&
-                    !calendlyAvailable.has(`${dateKey}|${hStr}:00`) &&
-                    !calendlyAvailable.has(`${dateKey}|${hStr}:30`) &&
+                    !calendlyAvailable.has(`${dateKey}|${hStr}`) &&
                     !isPast && !isBlocked;
                   const bookings00 = bookingsMap.get(`${dateKey}|${hStr}:00`) ?? [];
                   const bookings30 = bookingsMap.get(`${dateKey}|${hStr}:30`) ?? [];
