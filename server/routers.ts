@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
-import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot, syncCalendlySlots, getCalendlySlots } from "./db";
+import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot, syncCalendlySlots, getCalendlySlots, ensureCalendlySlotsTable } from "./db";
 import { z } from "zod";
 import { getCalendlyAvailability } from "./calendly";
 import { ENV } from "./_core/env";
@@ -12,6 +12,7 @@ import { ENV } from "./_core/env";
 // ── Calendly hourly sync ───────────────────────────────────────────────────────
 
 export async function runCalendlySync() {
+  await ensureCalendlySlotsTable();
   if (!ENV.calendlyWorkerUrl) return;
   try {
     console.log("[CalendlySync] Starting sync...");

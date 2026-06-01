@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, leads, InsertLead, Lead, blockedSlots, BlockedSlot, calendlySlots, CalendlySlot } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -160,6 +160,25 @@ export async function removeBlockedSlot(dateKey: string, slotKey?: string): Prom
 }
 
 // ── Calendly synced slots ──────────────────────────────────────────────────────
+
+export async function ensureCalendlySlotsTable(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS \`calendlySlots\` (
+        \`id\` int AUTO_INCREMENT NOT NULL,
+        \`dateKey\` varchar(16) NOT NULL,
+        \`slotKey\` varchar(8) NOT NULL,
+        \`syncedAt\` timestamp NOT NULL DEFAULT (now()),
+        CONSTRAINT \`calendlySlots_id\` PRIMARY KEY(\`id\`)
+      )
+    `);
+    console.log("[DB] calendlySlots table ready");
+  } catch (err) {
+    console.error("[DB] Failed to create calendlySlots table:", err);
+  }
+}
 
 export async function syncCalendlySlots(days: { date: string; slots: string[] }[]): Promise<void> {
   const db = await getDb();
