@@ -182,7 +182,7 @@ export async function ensureCalendlySlotsTable(): Promise<void> {
 
 export async function syncCalendlySlots(days: { date: string; slots: string[] }[]): Promise<void> {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) { console.warn("[CalendlySync] DB not available"); return; }
   // Clear all existing synced slots and replace with fresh data
   await db.delete(calendlySlots);
   if (days.length === 0) return;

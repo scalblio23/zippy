@@ -61,8 +61,8 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
     // Sync Calendly availability immediately then every hour
-    runCalendlySync();
-    setInterval(runCalendlySync, 60 * 60 * 1000);
+    runCalendlySync().catch(err => console.error("[CalendlySync] Startup sync failed:", err));
+    setInterval(() => runCalendlySync().catch(err => console.error("[CalendlySync] Hourly sync failed:", err)), 60 * 60 * 1000);
   });
 }
 
