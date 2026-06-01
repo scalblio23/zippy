@@ -33,11 +33,6 @@ function slotLabel(slot: string) {
   return `${hour}:00 ${ampm}`;
 }
 
-// Convert booking date to YYYY-MM-DD — handles both "Tue, 6 May" and "YYYY-MM-DD" formats
-function localDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function parseBookingDateKey(bookingDate: string): string | null {
   try {
     // Already in YYYY-MM-DD format
