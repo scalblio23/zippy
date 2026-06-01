@@ -15,6 +15,13 @@
       "when": 1777963392120,
       "tag": "0001_groovy_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1748736000000,
+      "tag": "0002_calendly_slots",
+      "breakpoints": true
     }
   ]
 }
