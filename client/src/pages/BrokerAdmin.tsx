@@ -34,6 +34,10 @@ function slotLabel(slot: string) {
 }
 
 // Convert booking date to YYYY-MM-DD — handles both "Tue, 6 May" and "YYYY-MM-DD" formats
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function parseBookingDateKey(bookingDate: string): string | null {
   try {
     // Already in YYYY-MM-DD format
@@ -43,15 +47,15 @@ function parseBookingDateKey(bookingDate: string): string | null {
     if (isNaN(d.getTime())) {
       const d2 = new Date(`${bookingDate} ${year + 1}`);
       if (isNaN(d2.getTime())) return null;
-      return d2.toISOString().slice(0, 10);
+      return localDateKey(d2);
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (d < today) {
       const d2 = new Date(`${bookingDate} ${year + 1}`);
-      if (!isNaN(d2.getTime())) return d2.toISOString().slice(0, 10);
+      if (!isNaN(d2.getTime())) return localDateKey(d2);
     }
-    return d.toISOString().slice(0, 10);
+    return localDateKey(d);
   } catch {
     return null;
   }

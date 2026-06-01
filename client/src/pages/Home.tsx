@@ -1352,7 +1352,7 @@ export default function Home() {
         loanSize: form.loanSize,
         interest: form.interest,
         timeline: form.timeline,
-        bookingDate: form.bookingDate ? formatDate(form.bookingDate) : undefined,
+        bookingDate: form.bookingDate ? localDateKey(form.bookingDate) : undefined,
         bookingTime: form.bookingTime || undefined,
         bookingTimezone: (TIMEZONES.find(t => `${t.tz}|${t.offsetHours}` === form.timezone)?.label ?? form.timezone) || undefined,
       });
