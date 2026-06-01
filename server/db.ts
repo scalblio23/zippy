@@ -1,4 +1,4 @@
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, leads, InsertLead, Lead, blockedSlots, BlockedSlot, calendlySlots } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -120,25 +120,11 @@ export async function getLeadById(id: number): Promise<Lead | undefined> {
 export async function getAllLeads(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  try {
-    return await db.select().from(leads).where(isNull(leads.deletedAt)).orderBy(leads.createdAt);
-  } catch {
-    // deletedAt column missing — query without it using raw SQL
-    const [rows] = await (db as any).$client.promise().query(
-      "SELECT id, name, phone, email, bank, bankName, loanSize, interest, timeline, bookingDate, bookingTime, bookingTimezone, aiReport, reportStatus, createdAt FROM leads ORDER BY createdAt"
-    );
-    return rows as Lead[];
-  }
+  return db.select().from(leads).orderBy(leads.createdAt);
 }
 
-export async function deleteLead(id: number): Promise<void> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  try {
-    await db.update(leads).set({ deletedAt: new Date() }).where(eq(leads.id, id));
-  } catch {
-    // deletedAt column missing — ignore, lead stays visible
-  }
+export async function deleteLead(_id: number): Promise<void> {
+  // Deletion disabled — leads are permanent in the DB
 }
 
 // ── Blocked slots helpers ──────────────────────────────────────────────────────

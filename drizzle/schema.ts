@@ -42,7 +42,6 @@ export const leads = mysqlTable("leads", {
   aiReport: json("aiReport"),
   reportStatus: mysqlEnum("reportStatus", ["pending", "generating", "ready", "failed"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  deletedAt: timestamp("deletedAt"),
 });
 
 export type Lead = typeof leads.$inferSelect;

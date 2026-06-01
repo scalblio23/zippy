@@ -159,13 +159,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "(now())"
-        },
-        "deletedAt": {
-          "name": "deletedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {},
