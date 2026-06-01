@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
-import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot } from "./db";
+import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot, readCalendlySlots } from "./db";
 import { z } from "zod";
 import { getCalendlyAvailability } from "./calendly";
 import { ENV } from "./_core/env";
@@ -119,20 +119,23 @@ export const appRouter = router({
   }),
 
   calendar: router({
-    // Get available slots from Calendly for a date range
+    // Get available slots — reads from DB (synced hourly by the Calendly worker)
     getAvailability: publicProcedure
       .input(z.object({ startDate: z.string(), endDate: z.string() }))
       .query(async ({ input }) => {
-        if (!ENV.calendlyWorkerUrl) return [];
         try {
-          const res = await fetch(
-            `${ENV.calendlyWorkerUrl}/availability?startDate=${input.startDate}&endDate=${input.endDate}`,
-            { signal: AbortSignal.timeout(60_000) }
-          );
-          if (!res.ok) throw new Error(`Worker returned ${res.status}`);
-          return await res.json() as { date: string; slots: string[] }[];
+          const rows = await readCalendlySlots();
+          const map = new Map<string, string[]>();
+          for (const { dateKey, slotKey } of rows) {
+            if (dateKey < input.startDate || dateKey > input.endDate) continue;
+            if (!map.has(dateKey)) map.set(dateKey, []);
+            map.get(dateKey)!.push(slotKey);
+          }
+          return Array.from(map.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, slots]) => ({ date, slots: slots.sort() }));
         } catch (err) {
-          console.error("[Calendly] Availability fetch failed:", err);
+          console.error("[Calendly] getAvailability failed:", err);
           return [];
         }
       }),

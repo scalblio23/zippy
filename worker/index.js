@@ -2,6 +2,9 @@ import express from "express";
 import { chromium } from "playwright-core";
 import { accessSync } from "fs";
 
+const MAIN_APP_URL = process.env.MAIN_APP_URL || "";
+const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
 const app = express();
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -130,19 +133,17 @@ app.get("/debug-availability", async (req, res) => {
   }
 });
 
-// Availability endpoint — scrapes available dates+times from Calendly via headless Chromium
-app.get("/availability", async (req, res) => {
+// Core scrape function — returns available days/slots from Calendly
+async function scrapeCalendlyAvailability() {
   const executablePath = findChromium();
   const browser = await chromium.launch({
     executablePath,
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--headless=new"],
   });
-
   try {
     const page = await browser.newPage();
     page.setDefaultTimeout(30_000);
 
-    // Use route interception — buffer body first so we can both read it and pass it through
     const availabilityData = [];
     await page.route("**/calendar/range**", async route => {
       const response = await route.fetch();
@@ -164,7 +165,7 @@ app.get("/availability", async (req, res) => {
       hour12: false,
     });
 
-    const days = availabilityData
+    return availabilityData
       .filter(d => d.status === "available")
       .map(d => ({
         date: d.date,
@@ -173,14 +174,47 @@ app.get("/availability", async (req, res) => {
           .map(s => fmt.format(new Date(s.start_time))),
       }))
       .filter(d => d.slots.length > 0);
+  } finally {
+    await browser.close();
+  }
+}
 
+// Push scraped availability to the main app so it can update the reports calendar
+async function syncToMainApp(days) {
+  if (!MAIN_APP_URL) return;
+  try {
+    await fetch(`${MAIN_APP_URL}/api/calendly-sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(days),
+    });
+    console.log(`[Worker] Synced ${days.length} days to main app`);
+  } catch (err) {
+    console.error("[Worker] Failed to sync to main app:", err.message);
+  }
+}
+
+// Hourly sync job
+async function runHourlySync() {
+  console.log("[Worker] Running hourly Calendly sync...");
+  try {
+    const days = await scrapeCalendlyAvailability();
+    console.log(`[Worker] Scraped ${days.length} available days`);
+    await syncToMainApp(days);
+  } catch (err) {
+    console.error("[Worker] Hourly sync failed:", err.message);
+  }
+}
+
+// Availability endpoint — scrapes and returns live data
+app.get("/availability", async (req, res) => {
+  try {
+    const days = await scrapeCalendlyAvailability();
     console.log(`[Worker] Scraped ${days.length} available days`);
     res.json(days);
   } catch (err) {
     console.error("[Worker] Availability scrape failed:", err.message);
     res.status(500).json({ error: err.message });
-  } finally {
-    await browser.close();
   }
 });
 
@@ -206,4 +240,9 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`[Worker] Calendly booking worker running on port ${PORT}`);
   console.log(`[Worker] Chromium path: ${findChromium() ?? "not found"}`);
+  console.log(`[Worker] Main app URL: ${MAIN_APP_URL || "not set — sync disabled"}`);
+
+  // Run initial sync after 30s (give main app time to boot), then every hour
+  setTimeout(() => runHourlySync(), 30_000);
+  setInterval(() => runHourlySync(), SYNC_INTERVAL_MS);
 });

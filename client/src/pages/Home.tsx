@@ -813,7 +813,7 @@ function StepContact({
   const endDate = new Date(today.getTime() + 14 * 86400_000).toISOString().slice(0, 10);
   const availabilityQuery = trpc.calendar.getAvailability.useQuery(
     { startDate, endDate },
-    { staleTime: 5 * 60_000, refetchInterval: (data) => (!data || data.length === 0) ? 10_000 : false }
+    { staleTime: 5 * 60_000 }
   );
 
   const availableDays = availabilityQuery.data ?? [];

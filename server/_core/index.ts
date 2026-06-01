@@ -8,6 +8,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { storeCalendlySlots } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -44,6 +45,19 @@ async function startServer() {
       createContext,
     })
   );
+  // Calendly sync endpoint — called by the worker every hour
+  app.post("/api/calendly-sync", async (req, res) => {
+    try {
+      const days = req.body as { date: string; slots: string[] }[];
+      if (!Array.isArray(days)) return res.status(400).json({ error: "expected array" });
+      await storeCalendlySlots(days);
+      res.json({ ok: true, days: days.length });
+    } catch (err: any) {
+      console.error("[CalendlySync] Store failed:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

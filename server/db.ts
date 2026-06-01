@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, leads, InsertLead, Lead, blockedSlots, BlockedSlot } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -146,6 +146,44 @@ export async function addBlockedSlot(dateKey: string, slotKey?: string): Promise
     .limit(1);
   if (existing.length === 0) {
     await db.insert(blockedSlots).values({ dateKey, slotKey: slotKey ?? null });
+  }
+}
+
+// ── Calendly synced slots (raw SQL — no schema dependency) ────────────────────
+
+async function ensureCalendlyTable(db: ReturnType<typeof drizzle>) {
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS calendlySlots (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      dateKey VARCHAR(16) NOT NULL,
+      slotKey VARCHAR(8) NOT NULL,
+      syncedAt TIMESTAMP DEFAULT NOW()
+    )
+  `));
+}
+
+export async function storeCalendlySlots(days: { date: string; slots: string[] }[]): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await ensureCalendlyTable(db);
+  await db.execute(sql.raw("DELETE FROM calendlySlots"));
+  for (const day of days) {
+    for (const slot of day.slots) {
+      await db.execute(sql`INSERT INTO calendlySlots (dateKey, slotKey) VALUES (${day.date}, ${slot})`);
+    }
+  }
+  console.log(`[CalendlySync] Stored ${days.reduce((n, d) => n + d.slots.length, 0)} slots across ${days.length} days`);
+}
+
+export async function readCalendlySlots(): Promise<{ dateKey: string; slotKey: string }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    await ensureCalendlyTable(db);
+    const result = await db.execute(sql.raw("SELECT dateKey, slotKey FROM calendlySlots"));
+    return (result[0] as unknown as any[]).map((r: any) => ({ dateKey: r.dateKey, slotKey: r.slotKey }));
+  } catch {
+    return [];
   }
 }
 
