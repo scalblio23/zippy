@@ -124,7 +124,7 @@ export async function getAllLeads(): Promise<Lead[]> {
     return await db.select().from(leads).where(isNull(leads.deletedAt)).orderBy(leads.createdAt);
   } catch {
     // deletedAt column missing — query without it using raw SQL
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await (db as any).$client.promise().query(
       "SELECT id, name, phone, email, bank, bankName, loanSize, interest, timeline, bookingDate, bookingTime, bookingTimezone, aiReport, reportStatus, createdAt FROM leads ORDER BY createdAt"
     );
     return rows as Lead[];
@@ -134,7 +134,11 @@ export async function getAllLeads(): Promise<Lead[]> {
 export async function deleteLead(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(leads).set({ deletedAt: new Date() }).where(eq(leads.id, id));
+  try {
+    await db.update(leads).set({ deletedAt: new Date() }).where(eq(leads.id, id));
+  } catch {
+    // deletedAt column missing — ignore, lead stays visible
+  }
 }
 
 // ── Blocked slots helpers ──────────────────────────────────────────────────────
