@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "068151f0-b6c2-4928-9956-99abddee4656",
-  "prevId": "555a84c4-55fe-4421-b354-54bbefa6305f",
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "prevId": "068151f0-b6c2-4928-9956-99abddee4656",
   "tables": {
     "blockedSlots": {
       "name": "blockedSlots",
