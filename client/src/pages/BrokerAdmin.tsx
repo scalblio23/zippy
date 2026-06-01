@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import {
   FileText, Phone, Mail, Calendar, TrendingDown,
   ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Loader2,
-  User, ChevronLeft, ChevronRight, Ban, X, Search,
+  User, ChevronLeft, ChevronRight, Ban, X, Search, Trash2,
 } from "lucide-react";
 import type { BrokerReport, LenderOption } from "../../../server/routers";
 import type { Lead } from "../../../drizzle/schema";
@@ -500,10 +500,13 @@ function LenderCard({ lender, rank }: { lender: LenderOption; rank: number }) {
   );
 }
 
-function LeadCard({ lead }: {
+function LeadCard({ lead, onDeleted }: {
   lead: Lead;
+  onDeleted: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteMutation = trpc.survey.deleteLead.useMutation({ onSuccess: onDeleted });
   const report = lead.aiReport as BrokerReport | null;
   const hasBooking = !!lead.bookingDate;
 
@@ -524,6 +527,13 @@ function LeadCard({ lead }: {
           </div>
         )}
         <div className="flex items-start gap-3 p-5">
+          {confirmDelete ? (
+            <div className="flex items-center gap-2 ml-auto mb-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+              <span className="text-xs text-red-600 font-semibold">Delete permanently?</span>
+              <button onClick={() => deleteMutation.mutate({ leadId: lead.id })} className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-1 rounded-lg">Yes</button>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs font-bold text-gray-500 hover:text-gray-700 px-2 py-1 rounded-lg">Cancel</button>
+            </div>
+          ) : null}
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(e => !e)}>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-[#0D5C55]/10 flex items-center justify-center flex-shrink-0">
@@ -553,6 +563,9 @@ function LeadCard({ lead }: {
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <p className="text-xs text-gray-300">{new Date(lead.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</p>
             <div className="flex items-center gap-2">
+              <button onClick={() => setConfirmDelete(true)} className="text-gray-300 hover:text-red-400 transition-colors mr-1" title="Delete lead">
+                <Trash2 className="w-4 h-4" />
+              </button>
               <button onClick={() => setExpanded(e => !e)} className="text-gray-300 hover:text-gray-500 transition-colors">
                 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
@@ -609,7 +622,7 @@ type LeadFilter = "all" | "today" | "thisWeek" | "upcoming" | "past";
 const INITIAL_VISIBLE_COUNT = 15;
 
 export default function BrokerAdmin() {
-  const { data: leads, isLoading, error } = trpc.survey.getAllLeads.useQuery();
+  const { data: leads, isLoading, error, refetch: refetchLeads } = trpc.survey.getAllLeads.useQuery();
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<LeadFilter>("all");
@@ -784,7 +797,7 @@ export default function BrokerAdmin() {
 
         <div className="space-y-3">
           {visibleLeads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} />
+            <LeadCard key={lead.id} lead={lead} onDeleted={refetchLeads} />
           ))}
         </div>
 
