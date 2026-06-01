@@ -29,9 +29,11 @@ function slotLabel(slot: string) {
   return `${hour}:00 ${ampm}`;
 }
 
-// Convert "Tue, 6 May" style booking date to YYYY-MM-DD
+// Convert booking date to YYYY-MM-DD — handles both "Tue, 6 May" and "YYYY-MM-DD" formats
 function parseBookingDateKey(bookingDate: string): string | null {
   try {
+    // Already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) return bookingDate;
     const year = new Date().getFullYear();
     const d = new Date(`${bookingDate} ${year}`);
     if (isNaN(d.getTime())) {
@@ -39,7 +41,6 @@ function parseBookingDateKey(bookingDate: string): string | null {
       if (isNaN(d2.getTime())) return null;
       return d2.toISOString().slice(0, 10);
     }
-    // If the date is in the past, try next year
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (d < today) {
@@ -52,9 +53,11 @@ function parseBookingDateKey(bookingDate: string): string | null {
   }
 }
 
-// Convert bookingTime "9:00 AM – 9:30 AM" to "HH:MM"
+// Convert bookingTime to "HH:MM" — handles "HH:MM" (24h) and "9:00 AM – 9:30 AM" formats
 function parseBookingTimeKey(bookingTime: string): string | null {
   try {
+    // Already HH:MM 24h format
+    if (/^\d{2}:\d{2}$/.test(bookingTime)) return bookingTime;
     const match = bookingTime.match(/^(\d+):(\d+)\s*(AM|PM)/i);
     if (!match) return null;
     let h = parseInt(match[1]);
