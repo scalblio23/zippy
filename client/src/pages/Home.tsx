@@ -17,6 +17,10 @@ import {
 import { trpc } from "@/lib/trpc";
 import type { BrokerReport, LenderOption } from "../../../server/routers";
 
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // ── Bank data ─────────────────────────────────────────────────────────────────
 const BANKS = [
   { id: "anz",       name: "ANZ",               logo: "https://d2xsxph8kpxj0f.cloudfront.net/310519663412142004/MqkHRp8irWn8dMYsECtkoh/anz-logo_a7096508.png" },
@@ -809,15 +813,15 @@ function StepContact({
   const detailsDone = phoneValid && emailValid;
 
   const today = new Date();
-  const startDate = today.toISOString().slice(0, 10);
-  const endDate = new Date(today.getTime() + 14 * 86400_000).toISOString().slice(0, 10);
+  const startDate = localDateKey(today);
+  const endDate = localDateKey(new Date(today.getTime() + 14 * 86400_000));
   const availabilityQuery = trpc.calendar.getAvailability.useQuery(
     { startDate, endDate },
     { staleTime: 5 * 60_000 }
   );
 
   const availableDays = availabilityQuery.data ?? [];
-  const selectedDay = availableDays.find(d => d.date === form.bookingDate?.toISOString().slice(0, 10));
+  const selectedDay = availableDays.find(d => d.date === (form.bookingDate ? localDateKey(form.bookingDate) : ""));
   const availableSlots = selectedDay?.slots ?? [];
 
   const datePicked = !!form.bookingDate;
