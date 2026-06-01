@@ -4,10 +4,26 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
-import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot } from "./db";
+import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot, syncCalendlySlots, getCalendlySlots } from "./db";
 import { z } from "zod";
 import { getCalendlyAvailability } from "./calendly";
 import { ENV } from "./_core/env";
+
+// ── Calendly hourly sync ───────────────────────────────────────────────────────
+
+export async function runCalendlySync() {
+  if (!ENV.calendlyWorkerUrl) return;
+  try {
+    console.log("[CalendlySync] Starting sync...");
+    const res = await fetch(`${ENV.calendlyWorkerUrl}/availability`, { signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+    const days = await res.json() as { date: string; slots: string[] }[];
+    await syncCalendlySlots(days);
+    console.log(`[CalendlySync] Synced ${days.length} days`);
+  } catch (err) {
+    console.error("[CalendlySync] Failed:", err);
+  }
+}
 
 async function callCalendlyWorker(payload: { name: string; email: string; phone: string; date: string; time: string }) {
   if (!ENV.calendlyWorkerUrl) return;
@@ -119,20 +135,24 @@ export const appRouter = router({
   }),
 
   calendar: router({
-    // Get available slots from Calendly for a date range
+    // Get available slots from DB (synced hourly from Calendly worker)
     getAvailability: publicProcedure
       .input(z.object({ startDate: z.string(), endDate: z.string() }))
       .query(async ({ input }) => {
-        if (!ENV.calendlyWorkerUrl) return [];
         try {
-          const res = await fetch(
-            `${ENV.calendlyWorkerUrl}/availability?startDate=${input.startDate}&endDate=${input.endDate}`,
-            { signal: AbortSignal.timeout(60_000) }
-          );
-          if (!res.ok) throw new Error(`Worker returned ${res.status}`);
-          return await res.json() as { date: string; slots: string[] }[];
+          const rows = await getCalendlySlots();
+          // Group by date, filter to requested range
+          const map = new Map<string, string[]>();
+          for (const row of rows) {
+            if (row.dateKey < input.startDate || row.dateKey > input.endDate) continue;
+            if (!map.has(row.dateKey)) map.set(row.dateKey, []);
+            map.get(row.dateKey)!.push(row.slotKey);
+          }
+          return Array.from(map.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, slots]) => ({ date, slots: slots.sort() }));
         } catch (err) {
-          console.error("[Calendly] Availability fetch failed:", err);
+          console.error("[Calendly] getAvailability failed:", err);
           return [];
         }
       }),

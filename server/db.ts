@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, leads, InsertLead, Lead, blockedSlots, BlockedSlot } from "../drizzle/schema";
+import { InsertUser, users, leads, InsertLead, Lead, blockedSlots, BlockedSlot, calendlySlots, CalendlySlot } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -155,7 +155,25 @@ export async function removeBlockedSlot(dateKey: string, slotKey?: string): Prom
   if (slotKey) {
     await db.delete(blockedSlots).where(and(eq(blockedSlots.dateKey, dateKey), eq(blockedSlots.slotKey, slotKey)));
   } else {
-    // Remove all blocks for this day
     await db.delete(blockedSlots).where(eq(blockedSlots.dateKey, dateKey));
   }
+}
+
+// ── Calendly synced slots ──────────────────────────────────────────────────────
+
+export async function syncCalendlySlots(days: { date: string; slots: string[] }[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Clear all existing synced slots and replace with fresh data
+  await db.delete(calendlySlots);
+  if (days.length === 0) return;
+  const rows = days.flatMap(d => d.slots.map(s => ({ dateKey: d.date, slotKey: s })));
+  await db.insert(calendlySlots).values(rows);
+  console.log(`[CalendlySync] Stored ${rows.length} slots across ${days.length} days`);
+}
+
+export async function getCalendlySlots(): Promise<CalendlySlot[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(calendlySlots);
 }
