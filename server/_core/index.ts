@@ -8,7 +8,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { storeCalendlySlots } from "../db";
+import { storeCalendlySlots, readCalendlySlots } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -54,6 +54,16 @@ async function startServer() {
       res.json({ ok: true, days: days.length });
     } catch (err: any) {
       console.error("[CalendlySync] Store failed:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Debug: show what's in calendlySlots table
+  app.get("/api/debug-slots", async (req, res) => {
+    try {
+      const rows = await readCalendlySlots();
+      res.json({ count: rows.length, sample: rows.slice(0, 10) });
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
