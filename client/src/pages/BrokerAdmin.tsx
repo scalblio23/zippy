@@ -14,6 +14,10 @@ import {
 import type { BrokerReport, LenderOption } from "../../../server/routers";
 import type { Lead } from "../../../drizzle/schema";
 
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Hourly rows 8am – 4pm; each row contains two 30-min half-slots
 // Blocking operates on HH:00 (the full hour key)
@@ -92,8 +96,8 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
   const unblockMutation = trpc.calendar.unblockSlot.useMutation({ onSuccess: () => refetchBlocked() });
 
   // Fetch Calendly availability for the current week from DB
-  const weekStartStr = weekStart.toISOString().slice(0, 10);
-  const weekEndStr = new Date(weekStart.getTime() + 6 * 86400_000).toISOString().slice(0, 10);
+  const weekStartStr = localDateKey(weekStart);
+  const weekEndStr = localDateKey(new Date(weekStart.getTime() + 6 * 86400_000));
   const { data: calendlyData = [] } = trpc.calendar.getAvailability.useQuery(
     { startDate: weekStartStr, endDate: weekEndStr },
     { staleTime: 30 * 60_000 }
@@ -294,7 +298,7 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
           <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: "72px repeat(7, 1fr)" }}>
             <div className="border-r border-gray-100" />
             {weekDays.map((day, i) => {
-              const dateKey = day.toISOString().slice(0, 10);
+              const dateKey = localDateKey(day);
               const isToday = day.toDateString() === today.toDateString();
               const isBlocked = blockedDaySet.has(dateKey);
               const isPast = day < today;
@@ -336,7 +340,7 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
                 </div>
                 {/* Day cells */}
                 {weekDays.map((day) => {
-                  const dateKey = day.toISOString().slice(0, 10);
+                  const dateKey = localDateKey(day);
                   const cellKey = `${dateKey}|${slot}`;
                   const isDayBlocked = blockedDaySet.has(dateKey);
                   const isSlotBlocked = effectiveBlockedSlotSet.has(cellKey);
@@ -630,7 +634,7 @@ export default function BrokerAdmin() {
   const dateBoundaries = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayKey = today.toISOString().slice(0, 10);
+    const todayKey = localDateKey(today);
 
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -640,7 +644,7 @@ export default function BrokerAdmin() {
     const dow = today.getDay(); // 0 = Sun
     const daysUntilSunday = dow === 0 ? 0 : 7 - dow;
     endOfWeek.setDate(endOfWeek.getDate() + daysUntilSunday);
-    const endOfWeekKey = endOfWeek.toISOString().slice(0, 10);
+    const endOfWeekKey = localDateKey(endOfWeek);
 
     return { todayKey, endOfWeekKey };
   }, []);
