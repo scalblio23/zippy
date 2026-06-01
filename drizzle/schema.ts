@@ -59,3 +59,14 @@ export const blockedSlots = mysqlTable("blockedSlots", {
 
 export type BlockedSlot = typeof blockedSlots.$inferSelect;
 export type InsertBlockedSlot = typeof blockedSlots.$inferInsert;
+
+// Calendly synced slots — populated hourly by the Calendly worker
+// dateKey: "YYYY-MM-DD", slotKey: "HH:MM" in AEST
+export const calendlySlots = mysqlTable("calendlySlots", {
+  id: int("id").autoincrement().primaryKey(),
+  dateKey: varchar("dateKey", { length: 16 }).notNull(),
+  slotKey: varchar("slotKey", { length: 8 }).notNull(),
+  syncedAt: timestamp("syncedAt").defaultNow().notNull(),
+});
+
+export type CalendlySlot = typeof calendlySlots.$inferSelect;
