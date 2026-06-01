@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, leads, InsertLead, Lead, blockedSlots, BlockedSlot, calendlySlots } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -120,7 +120,7 @@ export async function getLeadById(id: number): Promise<Lead | undefined> {
 export async function getAllLeads(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.select().from(leads).where(eq(leads.deletedAt, null as any)).orderBy(leads.createdAt);
+  return db.select().from(leads).where(isNull(leads.deletedAt)).orderBy(leads.createdAt);
 }
 
 export async function deleteLead(id: number): Promise<void> {
