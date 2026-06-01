@@ -101,9 +101,22 @@ function detectTimezone(): string {
 function convertSlotToTimezone(slot: string, targetOffsetHours: number): string {
   const BASE_OFFSET = 10; // AEST UTC+10
   const diff = targetOffsetHours - BASE_OFFSET;
-  if (diff === 0) return slot;
   const convertTime = (timeStr: string): string => {
-    const match = timeStr.trim().match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+    const trimmed = timeStr.trim();
+    // Handle 24h format "HH:MM"
+    const h24 = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (h24) {
+      const totalMins = parseInt(h24[1]) * 60 + parseInt(h24[2]) + Math.round(diff * 60);
+      const norm = ((totalMins % 1440) + 1440) % 1440;
+      let newH = Math.floor(norm / 60);
+      const newM = norm % 60;
+      const ampm = newH >= 12 ? "PM" : "AM";
+      if (newH > 12) newH -= 12;
+      if (newH === 0) newH = 12;
+      return `${newH}:${String(newM).padStart(2, "0")} ${ampm}`;
+    }
+    // Handle 12h format "H:MM AM/PM"
+    const match = trimmed.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
     if (!match) return timeStr;
     let h = parseInt(match[1]);
     const m = parseInt(match[2]);
