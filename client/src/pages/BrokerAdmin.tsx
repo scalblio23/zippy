@@ -104,7 +104,7 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
   const weekEndStr = localDateKey(new Date(weekStart.getTime() + 6 * 86400_000));
   const { data: calendlyData = [] } = trpc.calendar.getAvailability.useQuery(
     { startDate: weekStartStr, endDate: weekEndStr },
-    { staleTime: 30 * 60_000 }
+    { staleTime: 5 * 60_000 }
   );
   // Store as date|HH (hour only) so any slot within that hour marks it available
   const calendlyAvailable = useMemo(() => {
@@ -355,8 +355,9 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
                   const isCalendlyUnavailable = calendlyAvailable.size > 0 &&
                     !calendlyAvailable.has(`${dateKey}|${hStr}`) &&
                     !isPast && !isBlocked;
-                  const bookings00 = bookingsMap.get(`${dateKey}|${hStr}:00`) ?? [];
-                  const bookings30 = bookingsMap.get(`${dateKey}|${hStr}:30`) ?? [];
+                  // Match bookings in first half (:00–:29) or second half (:30–:59) of the hour
+                  const bookings00 = ["00","15"].flatMap(m => bookingsMap.get(`${dateKey}|${hStr}:${m}`) ?? []);
+                  const bookings30 = ["30","45"].flatMap(m => bookingsMap.get(`${dateKey}|${hStr}:${m}`) ?? []);
                   return (
                     <div
                       key={dateKey}
