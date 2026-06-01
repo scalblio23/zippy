@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
-import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot, readCalendlySlots, getBookedSlots } from "./db";
+import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, deleteLead, getBlockedSlots, addBlockedSlot, removeBlockedSlot, readCalendlySlots, getBookedSlots } from "./db";
 import { z } from "zod";
 import { getCalendlyAvailability } from "./calendly";
 import { ENV } from "./_core/env";
@@ -108,13 +108,11 @@ export const appRouter = router({
       return getAllLeads();
     }),
 
-    // Admin: delete a lead — DISABLED. Deletion has been removed from the
-    // admin UI; keeping this procedure throw-only as defense-in-depth so direct
-    // API calls cannot remove leads either.
+    // Soft-delete a lead — sets deletedAt, row stays in MySQL forever
     deleteLead: publicProcedure
       .input(z.object({ leadId: z.number() }))
-      .mutation(async () => {
-        throw new Error("Lead deletion is disabled");
+      .mutation(async ({ input }) => {
+        await deleteLead(input.leadId);
       }),
   }),
 

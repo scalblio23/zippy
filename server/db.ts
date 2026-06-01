@@ -120,13 +120,13 @@ export async function getLeadById(id: number): Promise<Lead | undefined> {
 export async function getAllLeads(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.select().from(leads).orderBy(leads.createdAt);
+  return db.select().from(leads).where(eq(leads.deletedAt, null as any)).orderBy(leads.createdAt);
 }
 
 export async function deleteLead(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(leads).where(eq(leads.id, id));
+  await db.update(leads).set({ deletedAt: new Date() }).where(eq(leads.id, id));
 }
 
 // ── Blocked slots helpers ──────────────────────────────────────────────────────
