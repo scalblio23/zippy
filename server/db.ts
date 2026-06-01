@@ -162,6 +162,15 @@ export async function storeCalendlySlots(days: { date: string; slots: string[] }
   console.log(`[CalendlySync] Stored ${rows.length} slots across ${days.length} days`);
 }
 
+export async function getBookedSlots(startDate: string, endDate: string): Promise<{ dateKey: string; slotKey: string }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({ dateKey: leads.bookingDate, slotKey: leads.bookingTime }).from(leads);
+  return result
+    .filter(r => r.dateKey && r.slotKey && r.dateKey >= startDate && r.dateKey <= endDate)
+    .map(r => ({ dateKey: r.dateKey!, slotKey: r.slotKey! }));
+}
+
 export async function readCalendlySlots(): Promise<{ dateKey: string; slotKey: string }[]> {
   const db = await getDb();
   if (!db) return [];

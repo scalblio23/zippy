@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
-import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot, readCalendlySlots } from "./db";
+import { createLead, updateLeadReport, updateLeadStatus, getLeadById, getAllLeads, getBlockedSlots, addBlockedSlot, removeBlockedSlot, readCalendlySlots, getBookedSlots } from "./db";
 import { z } from "zod";
 import { getCalendlyAvailability } from "./calendly";
 import { ENV } from "./_core/env";
@@ -124,10 +124,12 @@ export const appRouter = router({
       .input(z.object({ startDate: z.string(), endDate: z.string() }))
       .query(async ({ input }) => {
         try {
-          const rows = await readCalendlySlots();
+          const [rows, booked] = await Promise.all([readCalendlySlots(), getBookedSlots(input.startDate, input.endDate)]);
+          const bookedSet = new Set(booked.map(b => `${b.dateKey}|${b.slotKey}`));
           const map = new Map<string, string[]>();
           for (const { dateKey, slotKey } of rows) {
             if (dateKey < input.startDate || dateKey > input.endDate) continue;
+            if (bookedSet.has(`${dateKey}|${slotKey}`)) continue;
             if (!map.has(dateKey)) map.set(dateKey, []);
             map.get(dateKey)!.push(slotKey);
           }

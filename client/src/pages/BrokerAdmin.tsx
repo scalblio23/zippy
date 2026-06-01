@@ -19,18 +19,20 @@ function localDateKey(d: Date): string {
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-// Hourly rows 8am – 4pm; each row contains two 30-min half-slots
-// Blocking operates on HH:00 (the full hour key)
-const HOUR_SLOTS: string[] = [];
+// 15-minute rows 8am – 4:45pm; blocking still operates on HH:00 (full hour key)
+const QUARTER_SLOTS: string[] = [];
 for (let h = 8; h <= 16; h++) {
-  HOUR_SLOTS.push(`${String(h).padStart(2, "0")}:00`);
+  for (const m of [0, 15, 30, 45]) {
+    if (h === 16 && m > 45) break;
+    QUARTER_SLOTS.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
 }
 
 function slotLabel(slot: string) {
-  const [h] = slot.split(":").map(Number);
+  const [h, m] = slot.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
   const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${hour}:00 ${ampm}`;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 function parseBookingDateKey(bookingDate: string): string | null {
@@ -101,13 +103,12 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
     { startDate: weekStartStr, endDate: weekEndStr },
     { staleTime: 5 * 60_000 }
   );
-  // Store as date|HH (hour only) so any slot within that hour marks it available
+  // Store as date|HH:MM for exact 15-min slot matching
   const calendlyAvailable = useMemo(() => {
     const s = new Set<string>();
     for (const day of calendlyData) {
       for (const slot of day.slots) {
-        const hour = slot.split(":")[0];
-        s.add(`${day.date}|${hour}`);
+        s.add(`${day.date}|${slot}`);
       }
     }
     return s;
@@ -327,83 +328,68 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
             })}
           </div>
 
-          {/* Hourly rows 8am–4pm — each row has a faint 30-min divider at the midpoint */}
+          {/* 15-min rows 8am–4:45pm */}
           <div className="overflow-y-auto max-h-[560px]" style={{ userSelect: "none" }}>
-            {HOUR_SLOTS.map((slot) => (
-              <div key={slot} className="grid border-b border-gray-200 last:border-b-0" style={{ gridTemplateColumns: "72px repeat(7, 1fr)", minHeight: "64px" }}>
-                {/* Time label — top-aligned, always visible */}
-                <div className="border-r border-gray-200 flex flex-col justify-between py-1 pr-3 items-end">
-                  <span className="text-xs text-gray-600 font-bold whitespace-nowrap">{slotLabel(slot)}</span>
-                  {/* 30-min sub-label */}
-                  <span className="text-[10px] text-gray-300 whitespace-nowrap">:30</span>
+            {QUARTER_SLOTS.map((slot) => {
+              const [hStr, mStr] = slot.split(":");
+              const isHourMark = mStr === "00";
+              return (
+              <div key={slot} className={`grid ${isHourMark ? "border-b border-gray-200" : "border-b border-gray-100"} last:border-b-0`} style={{ gridTemplateColumns: "72px repeat(7, 1fr)", minHeight: "28px" }}>
+                {/* Time label — only show on :00 marks */}
+                <div className="border-r border-gray-200 flex items-center justify-end py-0.5 pr-3">
+                  {isHourMark
+                    ? <span className="text-xs text-gray-600 font-bold whitespace-nowrap">{slotLabel(slot)}</span>
+                    : <span className="text-[10px] text-gray-300 whitespace-nowrap">{`:${mStr}`}</span>
+                  }
                 </div>
                 {/* Day cells */}
                 {weekDays.map((day) => {
                   const dateKey = localDateKey(day);
-                  const cellKey = `${dateKey}|${slot}`;
+                  const hourKey = `${dateKey}|${hStr}:00`;
                   const isDayBlocked = blockedDaySet.has(dateKey);
-                  const isSlotBlocked = effectiveBlockedSlotSet.has(cellKey);
+                  const isSlotBlocked = effectiveBlockedSlotSet.has(hourKey);
                   const isBlocked = isDayBlocked || isSlotBlocked;
                   const isPast = day < today;
-                  // Grey out slots not available in Calendly
-                  const [hStr] = slot.split(":");
                   const isCalendlyUnavailable = calendlyAvailable.size > 0 &&
-                    !calendlyAvailable.has(`${dateKey}|${hStr}`) &&
+                    !calendlyAvailable.has(`${dateKey}|${slot}`) &&
                     !isPast && !isBlocked;
-                  // Match bookings in first half (:00–:29) or second half (:30–:59) of the hour
-                  const bookings00 = ["00","15"].flatMap(m => bookingsMap.get(`${dateKey}|${hStr}:${m}`) ?? []);
-                  const bookings30 = ["30","45"].flatMap(m => bookingsMap.get(`${dateKey}|${hStr}:${m}`) ?? []);
+                  const bookings = bookingsMap.get(`${dateKey}|${slot}`) ?? [];
                   return (
                     <div
                       key={dateKey}
                       ref={el => {
-                        if (el) cellRefs.current.set(cellKey, el);
-                        else cellRefs.current.delete(cellKey);
+                        if (el) cellRefs.current.set(hourKey, el);
+                        else cellRefs.current.delete(hourKey);
                       }}
-                      onMouseDown={() => handleCellMouseDown(dateKey, slot, effectiveBlockedSlotSet.has(cellKey), isDayBlocked, isPast)}
-                      onMouseEnter={() => handleCellMouseEnter(dateKey, slot, isDayBlocked, isPast)}
+                      onMouseDown={() => handleCellMouseDown(dateKey, `${hStr}:00`, effectiveBlockedSlotSet.has(hourKey), isDayBlocked, isPast)}
+                      onMouseEnter={() => handleCellMouseEnter(dateKey, `${hStr}:00`, isDayBlocked, isPast)}
                       title={isDayBlocked ? "Whole day blocked" : isSlotBlocked ? "Click/drag to unblock" : isCalendlyUnavailable ? "Not available in Calendly" : "Click or drag to block"}
                       className={`
-                        relative border-r border-gray-200 last:border-r-0 flex flex-col
+                        relative border-r border-gray-200 last:border-r-0 overflow-hidden
                         ${isPast ? "opacity-30" : isDayBlocked ? "bg-red-50 cursor-not-allowed" : "cursor-pointer"}
                         ${isSlotBlocked && !isDayBlocked ? "bg-red-100" : ""}
                         ${isCalendlyUnavailable ? "bg-gray-100" : ""}
                         ${!isBlocked && !isCalendlyUnavailable && !isPast ? "hover:bg-gray-50" : ""}
                       `}
                     >
-                      {/* Top half (:00 slot) */}
-                      <div className="flex-1 relative border-b border-dashed border-gray-200 overflow-hidden">
-                        {/* Blocked indicator (sits underneath any booking) */}
-                        {isSlotBlocked && !isDayBlocked && bookings00.length === 0 && (
-                          <div className="absolute inset-0.5 rounded bg-red-300/50 flex items-center justify-center">
-                            <Ban className="w-3 h-3 text-red-500" />
-                          </div>
-                        )}
-                        {/* Booking pill — always rendered if a booking exists */}
-                        {bookings00.length > 0 && (
-                          <div className={`absolute inset-0.5 rounded flex items-center px-1.5 overflow-hidden shadow-sm
-                            ${isBlocked ? "bg-[#0D5C55] ring-2 ring-red-500" : "bg-[#0D5C55]"}`}>
-                            {isBlocked && <AlertCircle className="w-3 h-3 text-red-300 mr-1 flex-shrink-0" />}
-                            <p className="text-white text-[11px] font-semibold truncate">{bookings00[0].name}</p>
-                          </div>
-                        )}
-                      </div>
-                      {/* Bottom half (:30 slot) */}
-                      <div className="flex-1 relative overflow-hidden">
-                        {/* Booking pill — always rendered if a booking exists */}
-                        {bookings30.length > 0 && (
-                          <div className={`absolute inset-0.5 rounded flex items-center px-1.5 overflow-hidden shadow-sm
-                            ${isBlocked ? "bg-[#0D5C55] ring-2 ring-red-500" : "bg-[#0D5C55]"}`}>
-                            {isBlocked && <AlertCircle className="w-3 h-3 text-red-300 mr-1 flex-shrink-0" />}
-                            <p className="text-white text-[11px] font-semibold truncate">{bookings30[0].name}</p>
-                          </div>
-                        )}
-                      </div>
+                      {isSlotBlocked && !isDayBlocked && bookings.length === 0 && (
+                        <div className="absolute inset-0.5 rounded bg-red-300/50 flex items-center justify-center">
+                          <Ban className="w-3 h-3 text-red-500" />
+                        </div>
+                      )}
+                      {bookings.length > 0 && (
+                        <div className={`absolute inset-0.5 rounded flex items-center px-1.5 overflow-hidden shadow-sm
+                          ${isBlocked ? "bg-[#0D5C55] ring-2 ring-red-500" : "bg-[#0D5C55]"}`}>
+                          {isBlocked && <AlertCircle className="w-3 h-3 text-red-300 mr-1 flex-shrink-0" />}
+                          <p className="text-white text-[11px] font-semibold truncate">{bookings[0].name}</p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            ))}
+            );})}
+
           </div>
         </div>
       </div>
