@@ -29,6 +29,13 @@
       "when": 1748822400000,
       "tag": "0003_leads_soft_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1748908800000,
+      "tag": "0004_ensure_deleted_at",
+      "breakpoints": true
     }
   ]
 }
