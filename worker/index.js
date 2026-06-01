@@ -218,6 +218,18 @@ app.get("/availability", async (req, res) => {
   }
 });
 
+// Manual sync endpoint — scrapes and pushes to main app DB
+app.post("/sync", async (req, res) => {
+  try {
+    const days = await scrapeCalendlyAvailability();
+    await syncToMainApp(days);
+    res.json({ ok: true, days: days.length, slots: days.reduce((n, d) => n + d.slots.length, 0) });
+  } catch (err) {
+    console.error("[Worker] Manual sync failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Book endpoint
 app.post("/book", async (req, res) => {
   const { name, email, phone, date, time } = req.body;
