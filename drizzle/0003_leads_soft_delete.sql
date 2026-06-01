@@ -1,1 +1,1 @@
-ALTER TABLE `leads` ADD COLUMN `deletedAt` timestamp;
+ALTER TABLE `leads` ADD COLUMN IF NOT EXISTS `deletedAt` timestamp;

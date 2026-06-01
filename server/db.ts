@@ -120,7 +120,12 @@ export async function getLeadById(id: number): Promise<Lead | undefined> {
 export async function getAllLeads(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.select().from(leads).where(isNull(leads.deletedAt)).orderBy(leads.createdAt);
+  try {
+    return await db.select().from(leads).where(isNull(leads.deletedAt)).orderBy(leads.createdAt);
+  } catch {
+    // deletedAt column may not exist yet — fall back to returning all leads
+    return db.select().from(leads).orderBy(leads.createdAt);
+  }
 }
 
 export async function deleteLead(id: number): Promise<void> {
