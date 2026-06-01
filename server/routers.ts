@@ -88,6 +88,25 @@ export const appRouter = router({
           content: `Phone: ${input.phone}\nEmail: ${input.email}\nBank: ${input.bankName}\nLoan: ${input.loanSize}\nRate: ${input.interest}\nTimeline: ${input.timeline}\nBooking: ${input.bookingDate ?? "TBC"} ${input.bookingTime ?? ""} ${input.bookingTimezone ? "(" + input.bookingTimezone + ")" : ""}`,
         }).catch(() => {});
 
+        // Zapier webhook — fire and forget
+        fetch("https://hooks.zapier.com/hooks/catch/16453711/4b1dnkm/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leadId,
+            name: input.name,
+            phone: input.phone,
+            email: input.email,
+            bank: input.bankName,
+            loanSize: input.loanSize,
+            interest: input.interest,
+            timeline: input.timeline,
+            bookingDate: input.bookingDate ?? "",
+            bookingTime: input.bookingTime ?? "",
+            bookingTimezone: input.bookingTimezone ?? "",
+          }),
+        }).catch(() => {});
+
         return { leadId };
       }),
 
