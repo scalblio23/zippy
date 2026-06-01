@@ -91,6 +91,21 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
   const blockMutation = trpc.calendar.blockSlot.useMutation({ onSuccess: () => refetchBlocked() });
   const unblockMutation = trpc.calendar.unblockSlot.useMutation({ onSuccess: () => refetchBlocked() });
 
+  // Fetch Calendly availability for the current week from DB
+  const weekStartStr = weekStart.toISOString().slice(0, 10);
+  const weekEndStr = new Date(weekStart.getTime() + 6 * 86400_000).toISOString().slice(0, 10);
+  const { data: calendlyData = [] } = trpc.calendar.getAvailability.useQuery(
+    { startDate: weekStartStr, endDate: weekEndStr },
+    { staleTime: 30 * 60_000 }
+  );
+  const calendlyAvailable = useMemo(() => {
+    const s = new Set<string>();
+    for (const day of calendlyData) {
+      for (const slot of day.slots) s.add(`${day.date}|${slot}`);
+    }
+    return s;
+  }, [calendlyData]);
+
   // Drag-to-paint — 100% ref-driven, zero React state updates during drag
   const isDraggingRef = useRef(false);
   const dragModeRef = useRef<"block" | "unblock">("block");
@@ -323,8 +338,12 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
                   const isSlotBlocked = effectiveBlockedSlotSet.has(cellKey);
                   const isBlocked = isDayBlocked || isSlotBlocked;
                   const isPast = day < today;
-                  // Check bookings for both the :00 and :30 sub-slots
+                  // Grey out slots not available in Calendly
                   const [hStr] = slot.split(":");
+                  const isCalendlyUnavailable = calendlyAvailable.size > 0 &&
+                    !calendlyAvailable.has(`${dateKey}|${hStr}:00`) &&
+                    !calendlyAvailable.has(`${dateKey}|${hStr}:30`) &&
+                    !isPast && !isBlocked;
                   const bookings00 = bookingsMap.get(`${dateKey}|${hStr}:00`) ?? [];
                   const bookings30 = bookingsMap.get(`${dateKey}|${hStr}:30`) ?? [];
                   return (
@@ -336,12 +355,13 @@ function WeeklyCalendar({ leads }: { leads: Lead[] }) {
                       }}
                       onMouseDown={() => handleCellMouseDown(dateKey, slot, effectiveBlockedSlotSet.has(cellKey), isDayBlocked, isPast)}
                       onMouseEnter={() => handleCellMouseEnter(dateKey, slot, isDayBlocked, isPast)}
-                      title={isDayBlocked ? "Whole day blocked" : isSlotBlocked ? "Click/drag to unblock" : "Click or drag to block"}
+                      title={isDayBlocked ? "Whole day blocked" : isSlotBlocked ? "Click/drag to unblock" : isCalendlyUnavailable ? "Not available in Calendly" : "Click or drag to block"}
                       className={`
                         relative border-r border-gray-200 last:border-r-0 flex flex-col
                         ${isPast ? "opacity-30" : isDayBlocked ? "bg-red-50 cursor-not-allowed" : "cursor-pointer"}
                         ${isSlotBlocked && !isDayBlocked ? "bg-red-100" : ""}
-                        ${!isBlocked && !isPast ? "hover:bg-gray-50" : ""}
+                        ${isCalendlyUnavailable ? "bg-gray-100" : ""}
+                        ${!isBlocked && !isCalendlyUnavailable && !isPast ? "hover:bg-gray-50" : ""}
                       `}
                     >
                       {/* Top half (:00 slot) */}
